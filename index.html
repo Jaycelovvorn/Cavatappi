@@ -3,14 +3,16 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>Logic Gate Calculator — 2-bit Adder</title>
+  <title>Bit-slice Logic — 2-bit Adder (Pro X)</title>
   <link rel="stylesheet" href="style.css" />
 </head>
 <body>
   <main class="container">
-    <header>
-      <h1>Logic Gate Calculator — 2-bit Adder</h1>
-      <p class="subtitle">Matte modern UI • Pyodide-powered Python interpreter</p>
+    <header class="header-card">
+      <div>
+        <h1>2-Bit Adder — Bit-Slice View</h1>
+        <p class="subtitle">A[n], B[n], C[n] naming • Pro X circuit look • Live gate-level animation</p>
+      </div>
     </header>
 
     <nav class="tabs" role="tablist" aria-label="Views">
@@ -20,275 +22,334 @@
 
     <section id="calc" class="tab-content active" role="tabpanel">
       <h2>2-Bit Adder — Inputs</h2>
-
       <div class="inputs-grid">
         <div class="input-col">
           <h3>A (most → least)</h3>
-          <label><input type="radio" name="A1" value="1"> 1</label>
-          <label><input type="radio" name="A1" value="0" checked> 0</label>
-          <label class="small">A1</label>
-
-          <label><input type="radio" name="A0" value="1"> 1</label>
-          <label><input type="radio" name="A0" value="0" checked> 0</label>
-          <label class="small">A0</label>
+          <div class="bit-row"><label>A1 <input type="checkbox" id="A1"></label></div>
+          <div class="bit-row"><label>A0 <input type="checkbox" id="A0"></label></div>
         </div>
 
         <div class="input-col">
           <h3>B (most → least)</h3>
-          <label><input type="radio" name="B1" value="1"> 1</label>
-          <label><input type="radio" name="B1" value="0" checked> 0</label>
-          <label class="small">B1</label>
-
-          <label><input type="radio" name="B0" value="1"> 1</label>
-          <label><input type="radio" name="B0" value="0" checked> 0</label>
-          <label class="small">B0</label>
+          <div class="bit-row"><label>B1 <input type="checkbox" id="B1"></label></div>
+          <div class="bit-row"><label>B0 <input type="checkbox" id="B0"></label></div>
         </div>
       </div>
 
       <div class="controls">
-        <button id="computeBtn" class="btn">Compute Sum</button>
-        <button id="randomBtn" class="btn alt">Randomize</button>
+        <button id="computeBtn" class="btn" disabled>Compute</button>
+        <button id="randomBtn" class="btn alt">Random</button>
+        <button id="clearBtn" class="btn ghost">Clear</button>
       </div>
 
       <div class="output">
-        <h3>Result (S2 S1 S0)</h3>
+        <h3>Result (C2 S1 S0)</h3>
         <div id="resultBox" class="result">—</div>
-        <p class="note">S2 is the final carry-out; S1 S0 are the 2-bit sum.</p>
+        <p class="note">C0 (initial carry-in) = 0. S1,S0 are bits; C2 final carry-out.</p>
       </div>
-
       <div class="explain">
-        <p>Under the hood: the page runs a Python interpreter (Pyodide) in your browser that uses logic gates (AND/OR/XOR/etc.) to compute the full addition. Switch to the <strong>Circuit</strong> tab to see the gates light up.</p>
+        <p class="note">Under the hood: a Python/bit-slice routine runs in the browser (Pyodide) and returns every intermediate gate signal so the circuit diagram lights up accurately.</p>
       </div>
     </section>
 
     <section id="circuit" class="tab-content" role="tabpanel" aria-hidden="true">
-      <h2>Visual Circuit (simplified)</h2>
-      <p class="note">Colors: green = HIGH (1), gray = LOW (0)</p>
+      <h2>Circuit — Full Adders (bit-slice labeled)</h2>
+      <p class="note">Green trace = HIGH (1). Traces use two 45° bends for PCB-style routing.</p>
 
-      <!-- Simple illustrative circuit: two full adders (blocks) -->
-      <div id="circuitSVG" class="diagram">
-        <!-- We'll keep this simple: boxes representing gates and labels -->
-        <div class="fa-row">
-          <div class="fa-block" id="fa0">
-            <div class="fa-title">Full Adder (LSB)</div>
-            <div class="gate xor" id="fa0_xorA">XOR</div>
-            <div class="gate and" id="fa0_andA">AND</div>
-            <div class="gate or" id="fa0_orA">OR</div>
-            <div class="fa-out">
-              <div>Sum: <span id="fa0_sum" class="light">0</span></div>
-              <div>Carry: <span id="fa0_cout" class="light">0</span></div>
-            </div>
-          </div>
+      <!-- SVG / HTML hybrid: group of blocks + traced wires using <svg> for crisp 45° turns -->
+      <div class="diagram card">
+        <!-- We'll include an inline SVG for wires & gates. IDs correspond to signals returned by Python. -->
+        <svg id="circuitSVG" viewBox="0 0 1000 420" width="100%" height="420" preserveAspectRatio="xMidYMid meet">
+          <!-- Background panel -->
+          <rect x="8" y="8" rx="14" ry="14" width="984" height="404" fill="url(#panelGrad)" stroke="#cfd6db" stroke-width="1"/>
+          <defs>
+            <linearGradient id="panelGrad" x1="0" x2="0" y1="0" y2="1">
+              <stop offset="0" stop-color="#f7fafb"/>
+              <stop offset="1" stop-color="#eef3f6"/>
+            </linearGradient>
+            <filter id="glow" x="-50%" y="-50%" width="200%" height="200%">
+              <feGaussianBlur stdDeviation="4" result="coloredBlur"/>
+              <feMerge><feMergeNode in="coloredBlur"/><feMergeNode in="SourceGraphic"/></feMerge>
+            </filter>
+          </defs>
 
-          <div class="fa-block" id="fa1">
-            <div class="fa-title">Full Adder (MSB)</div>
-            <div class="gate xor" id="fa1_xorA">XOR</div>
-            <div class="gate and" id="fa1_andA">AND</div>
-            <div class="gate or" id="fa1_orA">OR</div>
-            <div class="fa-out">
-              <div>Sum: <span id="fa1_sum" class="light">0</span></div>
-              <div>Carry: <span id="fa1_cout" class="light">0</span></div>
-            </div>
-          </div>
-        </div>
+          <!-- Labels for bit-slice naming -->
+          <text x="60" y="46" class="small-label">A1</text>
+          <text x="60" y="126" class="small-label">B1</text>
+          <text x="60" y="206" class="small-label">A0</text>
+          <text x="60" y="286" class="small-label">B0</text>
+
+          <!-- Full Adder MSB (bit 1) box -->
+          <g id="FA1" transform="translate(180,40)">
+            <rect x="0" y="0" width="360" height="180" rx="10" ry="10" class="fa-box"/>
+            <text x="180" y="20" text-anchor="middle" class="fa-title-text">Full Adder — n=1</text>
+
+            <!-- XOR for sum stage -->
+            <g id="FA1_XOR1" class="gate-group">
+              <rect x="16" y="44" width="92" height="40" rx="6" class="gate-rect"/>
+              <text x="62" y="70" text-anchor="middle" class="gate-label">XOR</text>
+            </g>
+
+            <g id="FA1_XOR2" class="gate-group">
+              <rect x="118" y="44" width="92" height="40" rx="6" class="gate-rect"/>
+              <text x="164" y="70" text-anchor="middle" class="gate-label">XOR</text>
+            </g>
+
+            <!-- AND gates -->
+            <g id="FA1_AND1" class="gate-group">
+              <rect x="16" y="96" width="60" height="36" rx="6" class="gate-rect"/>
+              <text x="46" y="118" text-anchor="middle" class="gate-label small">AND</text>
+            </g>
+            <g id="FA1_AND2" class="gate-group">
+              <rect x="86" y="96" width="60" height="36" rx="6" class="gate-rect"/>
+              <text x="116" y="118" text-anchor="middle" class="gate-label small">AND</text>
+            </g>
+            <g id="FA1_AND3" class="gate-group">
+              <rect x="156" y="96" width="60" height="36" rx="6" class="gate-rect"/>
+              <text x="186" y="118" text-anchor="middle" class="gate-label small">AND</text>
+            </g>
+
+            <!-- OR gate -->
+            <g id="FA1_OR" class="gate-group">
+              <rect x="236" y="96" width="100" height="36" rx="6" class="gate-rect"/>
+              <text x="286" y="118" text-anchor="middle" class="gate-label small">OR</text>
+            </g>
+
+            <!-- Outputs -->
+            <text x="320" y="30" text-anchor="end" class="out-label">S1</text>
+            <text x="320" y="160" text-anchor="end" class="out-label">C2 (Cout1)</text>
+          </g>
+
+          <!-- Full Adder LSB (bit 0) box -->
+          <g id="FA0" transform="translate(180,220)">
+            <rect x="0" y="0" width="360" height="180" rx="10" ry="10" class="fa-box"/>
+            <text x="180" y="20" text-anchor="middle" class="fa-title-text">Full Adder — n=0</text>
+
+            <g id="FA0_XOR1" class="gate-group">
+              <rect x="16" y="44" width="92" height="40" rx="6" class="gate-rect"/>
+              <text x="62" y="70" text-anchor="middle" class="gate-label">XOR</text>
+            </g>
+
+            <g id="FA0_XOR2" class="gate-group">
+              <rect x="118" y="44" width="92" height="40" rx="6" class="gate-rect"/>
+              <text x="164" y="70" text-anchor="middle" class="gate-label">XOR</text>
+            </g>
+
+            <g id="FA0_AND1" class="gate-group">
+              <rect x="16" y="96" width="60" height="36" rx="6" class="gate-rect"/>
+              <text x="46" y="118" text-anchor="middle" class="gate-label small">AND</text>
+            </g>
+            <g id="FA0_AND2" class="gate-group">
+              <rect x="86" y="96" width="60" height="36" rx="6" class="gate-rect"/>
+              <text x="116" y="118" text-anchor="middle" class="gate-label small">AND</text>
+            </g>
+            <g id="FA0_AND3" class="gate-group">
+              <rect x="156" y="96" width="60" height="36" rx="6" class="gate-rect"/>
+              <text x="186" y="118" text-anchor="middle" class="gate-label small">AND</text>
+            </g>
+
+            <g id="FA0_OR" class="gate-group">
+              <rect x="236" y="96" width="100" height="36" rx="6" class="gate-rect"/>
+              <text x="286" y="118" text-anchor="middle" class="gate-label small">OR</text>
+            </g>
+
+            <text x="320" y="30" text-anchor="end" class="out-label">S0</text>
+            <text x="320" y="160" text-anchor="end" class="out-label">C1 (Cout0)</text>
+          </g>
+
+          <!-- Traces (example routed paths, each with unique id) -->
+          <!-- A1 trace -->
+          <path id="trace_A1" class="trace" d="M100 46 L140 46 L170 64 L196 64" stroke-linecap="round"/>
+          <!-- B1 trace -->
+          <path id="trace_B1" class="trace" d="M100 126 L140 126 L170 106 L196 106" stroke-linecap="round"/>
+          <!-- A0 trace -->
+          <path id="trace_A0" class="trace" d="M100 206 L140 206 L170 224 L196 224" stroke-linecap="round"/>
+          <!-- B0 trace -->
+          <path id="trace_B0" class="trace" d="M100 286 L140 286 L170 266 L196 266" stroke-linecap="round"/>
+
+          <!-- Cin (C0) — fixed zero input trace -->
+          <path id="trace_C0" class="trace" d="M20 350 L140 350 L196 248" stroke-linecap="round"/>
+
+          <!-- Inter-adder carry traces -->
+          <path id="trace_C1" class="trace" d="M356 260 L420 260 L420 140 L420 140" stroke-linecap="round"/>
+          <path id="trace_C2" class="trace" d="M540 140 L620 140" stroke-linecap="round"/>
+
+          <!-- Markers for wire values (small circles) -->
+          <circle id="dot_A1" cx="140" cy="46" r="6" class="dot" />
+          <circle id="dot_B1" cx="140" cy="126" r="6" class="dot" />
+          <circle id="dot_A0" cx="140" cy="206" r="6" class="dot" />
+          <circle id="dot_B0" cx="140" cy="286" r="6" class="dot" />
+
+          <!-- S and C result indicators -->
+          <rect x="760" y="66" width="120" height="44" rx="8" class="result-pill"/>
+          <text x="820" y="95" text-anchor="middle" class="result-text" id="SVG_res">—</text>
+        </svg>
       </div>
     </section>
 
     <footer>
-      <p>Made with Pyodide • Good for embedding in EduBlogs (iframe) or GitHub Pages</p>
+      <p class="note">Designed for demos & embedding. Pyodide runs from CDN; no server required.</p>
     </footer>
   </main>
 
-  <!-- Pyodide (loaded from CDN) -->
+  <!-- Pyodide -->
   <script src="https://cdn.jsdelivr.net/pyodide/v0.29.0/full/pyodide.js"></script>
 
   <script>
-  // Tabs behavior
+  // Tabs
   document.querySelectorAll('.tab').forEach(btn => {
     btn.addEventListener('click', () => {
       document.querySelectorAll('.tab, .tab-content').forEach(el => el.classList.remove('active'));
       document.querySelectorAll('.tab').forEach(t => t.setAttribute('aria-selected', 'false'));
-      btn.classList.add('active');
-      btn.setAttribute('aria-selected', 'true');
-      const target = btn.getAttribute('data-target');
-      const tc = document.getElementById(target);
-      tc.classList.add('active');
+      btn.classList.add('active'); btn.setAttribute('aria-selected', 'true');
+      const target = btn.getAttribute('data-target'); document.getElementById(target).classList.add('active');
     });
   });
 
-  // Helper: read radio value
-  function readBit(name) {
-    const radios = document.getElementsByName(name);
-    for (const r of radios) if (r.checked) return r.value === '1';
-    return false;
-  }
+  // Helpers
+  function bitVal(id) { return document.getElementById(id).checked ? 1 : 0; }
+  const computeBtn = document.getElementById('computeBtn');
+  const randomBtn = document.getElementById('randomBtn');
+  const clearBtn = document.getElementById('clearBtn');
+  const resultBox = document.getElementById('resultBox');
 
-  // Initialize Pyodide and load the Python logic (the interpreter + adder wrapper)
-  let pyodideReady = false;
+  // Pyodide init + Python logic (returns gate-level dict)
   let pyodide = null;
-  async function initPyodide() {
-    try {
-      pyodide = await loadPyodide({
-        indexURL: "https://cdn.jsdelivr.net/pyodide/v0.29.0/full/"
-      });
-      // Load our interpreter + helper functions into the Python runtime
-      const pyCode = `
-
+  let pyReady = false;
+  async function initPy() {
+    pyodide = await loadPyodide({ indexURL: "https://cdn.jsdelivr.net/pyodide/v0.29.0/full/" });
+    const py = `
 class VHDLLogicGates:
     def __init__(self):
-        self.operations = {
-            'NOT': self.not_gate,
-            'AND': self.and_gate,
-            'OR': self.or_gate,
-            'NOR': self.nor_gate,
-            'NAND': self.nand_gate,
-            'XOR': self.xor_gate,
-            'XNOR': self.xnor_gate,
-            'IMPLY': self.imply_gate,
-            'NIMPLY': self.nimply_gate
-        }
+        pass
+    def not_gate(self,a): return not a
+    def and_gate(self,a,b): return a and b
+    def or_gate(self,a,b): return a or b
+    def xor_gate(self,a,b): return a != b
 
-    def not_gate(self, a):
-        return not a
+def full_adder_signals(a,b,cin, index):
+    # compute intermediate signals
+    xor1 = a ^ b
+    xor2 = xor1 ^ cin  # sum
+    and1 = a & b
+    and2 = b & cin
+    and3 = a & cin
+    or1 = and1 or and2
+    cout = or1 or and3
+    return {
+        f"A{index}": 1 if a else 0,
+        f"B{index}": 1 if b else 0,
+        f"XOR1_{index}": 1 if xor1 else 0,
+        f"SUM_{index}": 1 if xor2 else 0,
+        f"AND1_{index}": 1 if and1 else 0,
+        f"AND2_{index}": 1 if and2 else 0,
+        f"AND3_{index}": 1 if and3 else 0,
+        f"OR_{index}": 1 if or1 else 0,
+        f"COUT_{index}": 1 if cout else 0
+    }
 
-    def and_gate(self, a, b):
-        return a and b
-
-    def or_gate(self, a, b):
-        return a or b
-
-    def nor_gate(self, a, b):
-        return not (a or b)
-
-    def nand_gate(self, a, b):
-        return not (a and b)
-
-    def xor_gate(self, a, b):
-        return a != b
-
-    def xnor_gate(self, a, b):
-        return a == b
-
-    def imply_gate(self, a, b):
-        return (not a) or b
-
-    def nimply_gate(self, a, b):
-        return a and (not b)
-
-    def evaluate(self, gate_type, *inputs):
-        if gate_type not in self.operations:
-            raise ValueError(f"Unknown gate type: {gate_type}")
-        if gate_type == 'NOT' and len(inputs) != 1:
-            raise ValueError('NOT gate requires exactly one input')
-        elif gate_type != 'NOT' and len(inputs) != 2:
-            raise ValueError(f'{gate_type} gate requires exactly two inputs')
-        return self.operations[gate_type](*inputs)
-
-# Build a full adder using the gates (returns sum, carry)
-def full_adder_bit(a, b, cin):
-    g = VHDLLogicGates()
-    # sum = a XOR b XOR cin
-    s1 = g.xor_gate(a, b)
-    s = g.xor_gate(s1, cin)
-    # carry = majority(a,b,cin) = (a and b) or (b and cin) or (a and cin)
-    c1 = g.and_gate(a, b)
-    c2 = g.and_gate(b, cin)
-    c3 = g.and_gate(a, cin)
-    cout = g.or_gate(g.or_gate(c1, c2), c3)
-    return s, cout
-
-# 2-bit adder: a = [a1, a0], b = [b1, b0] -> returns [s2, s1, s0] (s2 is final carry)
-def two_bit_adder(a_bits, b_bits):
-    a1, a0 = a_bits
-    b1, b0 = b_bits
-    s0, c0 = full_adder_bit(a0, b0, False)
-    s1, c1 = full_adder_bit(a1, b1, c0)
-    s2 = c1
-    # Return as ints 0/1
-    return [1 if s2 else 0, 1 if s1 else 0, 1 if s0 else 0]
-
+def two_bit_adder_bits(a_bits, b_bits):
+    # a_bits and b_bits are lists [a1,a0] and [b1,b0] (ints 0/1)
+    signals = {}
+    # C0 is initial carry-in = 0
+    c0 = 0
+    # LSB index 0
+    s0 = full_adder_signals(a_bits[1], b_bits[1], c0, 0)
+    signals.update(s0)
+    c1 = s0['COUT_0']
+    # MSB index 1 (use c1)
+    s1 = full_adder_signals(a_bits[0], b_bits[0], c1, 1)
+    signals.update(s1)
+    c2 = s1['COUT_1']
+    # Final outputs as S0,S1,C2
+    outputs = {
+      "S0": signals['SUM_0'],
+      "S1": signals['SUM_1'],
+      "C2": 1 if c2 else 0
+    }
+    signals.update(outputs)
+    return signals
 `;
-      await pyodide.runPythonAsync(pyCode);
-      pyodideReady = true;
-      document.getElementById('computeBtn').disabled = false;
+    await pyodide.runPythonAsync(py);
+    pyReady = true;
+    computeBtn.disabled = false;
+  }
+  initPy().catch(e => { console.error(e); alert("Pyodide load failed; check console."); });
+
+  async function computeAndUpdate() {
+    if (!pyReady) { alert("Python runtime still loading"); return; }
+    const a1 = bitVal('A1'), a0 = bitVal('A0'), b1 = bitVal('B1'), b0 = bitVal('B0');
+    try {
+      const two_bit = pyodide.globals.get('two_bit_adder_bits');
+      const pyRes = two_bit([a1, a0], [b1, b0]);
+      const signals = pyRes.toJs ? pyRes.toJs() : pyRes;
+      pyRes.destroy && pyRes.destroy();
+      // Update textual result
+      const resStr = `${signals['C2']} ${signals['S1']} ${signals['S0']}`;
+      resultBox.textContent = resStr;
+      document.getElementById('SVG_res').textContent = resStr;
+      // Update SVG elements / traces / gate colors
+      // Inputs dots
+      setDot('dot_A1', signals['A1']); setDot('dot_B1', signals['B1']);
+      setDot('dot_A0', signals['A0']); setDot('dot_B0', signals['B0']);
+      // FA0 (index 0)
+      setGate('FA0_XOR1', signals['XOR1_0']);
+      setGate('FA0_XOR2', signals['SUM_0']);
+      setGate('FA0_AND1', signals['AND1_0']);
+      setGate('FA0_AND2', signals['AND2_0']);
+      setGate('FA0_AND3', signals['AND3_0']);
+      setGate('FA0_OR', signals['OR_0']);
+      // FA1
+      setGate('FA1_XOR1', signals['XOR1_1']);
+      setGate('FA1_XOR2', signals['SUM_1']);
+      setGate('FA1_AND1', signals['AND1_1']);
+      setGate('FA1_AND2', signals['AND2_1']);
+      setGate('FA1_AND3', signals['AND3_1']);
+      setGate('FA1_OR', signals['OR_1']);
+      // Carry markers: C1 is Cout_0, C2 is C2
+      setTrace('trace_C1', signals['COUT_0']);
+      setTrace('trace_C2', signals['C2']);
+      // highlight output pills
+      highlightResultPill(signals['C2'] || signals['S1'] || signals['S0']);
     } catch (err) {
-      console.error("Pyodide init failed:", err);
-      alert("Failed to initialize the Python runtime. Check console for details.");
+      console.error(err);
+      alert('Compute error — see console.');
     }
   }
 
-  // Kick off init
-  initPyodide();
-
-  // Compute button
-  document.getElementById('computeBtn').addEventListener('click', async () => {
-    if (!pyodideReady) {
-      alert('Still loading Python runtime — please wait a moment.');
-      return;
-    }
-    const a1 = readBit('A1'), a0 = readBit('A0');
-    const b1 = readBit('B1'), b0 = readBit('B0');
-
-    // Call the Python function
-    try {
-      const two_bit_adder = pyodide.globals.get('two_bit_adder');
-      // PyProxy will convert arrays/lists automatically
-      const resProxy = two_bit_adder([a1 ? 1 : 0, a0 ? 1 : 0], [b1 ? 1 : 0, b0 ? 1 : 0]);
-      // resProxy is a Python list-like PyProxy — convert to JS array
-      const res = Array.from(resProxy.toJs ? resProxy.toJs() : resProxy);
-      // Update result box
-      document.getElementById('resultBox').textContent = res.join(' ');
-      // Update circuit lights
-      updateCircuitVisuals(a1, a0, b1, b0, res);
-      // cleanup
-      resProxy.destroy && resProxy.destroy();
-    } catch (e) {
-      console.error(e);
-      alert('Error computing result — see console.');
-    }
+  // UI events
+  computeBtn.addEventListener('click', computeAndUpdate);
+  randomBtn.addEventListener('click', () => {
+    ['A1','A0','B1','B0'].forEach(id => document.getElementById(id).checked = Math.random() < 0.5);
+    computeAndUpdate();
+  });
+  clearBtn.addEventListener('click', () => {
+    ['A1','A0','B1','B0'].forEach(id => document.getElementById(id).checked = false);
+    resultBox.textContent = '—'; document.getElementById('SVG_res').textContent = '—';
+    // clear visuals
+    ['dot_A1','dot_B1','dot_A0','dot_B0','trace_C1','trace_C2'].forEach(id => {
+      const el = document.getElementById(id); el && (el.classList.remove('on'));
+    });
+    document.querySelectorAll('.gate-group').forEach(g => g.classList.remove('on'));
   });
 
-  // Randomize button
-  document.getElementById('randomBtn').addEventListener('click', () => {
-    function randSet(name) {
-      const bit = Math.random() < 0.5 ? '0' : '1';
-      const radios = document.getElementsByName(name);
-      for (const r of radios) if (r.value === bit) r.checked = true;
-    }
-    randSet('A1'); randSet('A0'); randSet('B1'); randSet('B0');
-  });
-
-  // Update circuit visuals (simple mapping)
-  function setLight(elId, val) {
-    const el = document.getElementById(elId);
-    if (!el) return;
-    el.textContent = val ? '1' : '0';
+  // Visual helpers
+  function setDot(id, val) {
+    const el = document.getElementById(id); if (!el) return;
     if (val) el.classList.add('on'); else el.classList.remove('on');
   }
-
-  function updateCircuitVisuals(a1, a0, b1, b0, resultArr) {
-    // resultArr is [s2, s1, s0] (integers)
-    const [s2, s1, s0] = resultArr.map(x => Number(x));
-    // LSB full adder outputs
-    setLight('fa0_sum', s0);
-    setLight('fa0_cout', /* carry out from fa0 is s1's carry input — approximated */ (s1 && !a1 && !b1) ? 1 : (s0 && (a0 || b0) ? 1 : 0));
-    // MSB full adder outputs
-    setLight('fa1_sum', s1);
-    setLight('fa1_cout', s2);
-    // Also toggle gate boxes (simple heuristic: highlight if inputs cause a '1' intermediate)
-    setGateState('fa0_xorA', (a0 ^ b0) === 1);
-    setGateState('fa0_andA', (a0 & b0) === 1);
-    setGateState('fa0_orA', (a0 | b0) === 1);
-
-    setGateState('fa1_xorA', (a1 ^ b1) === 1);
-    setGateState('fa1_andA', (a1 & b1) === 1);
-    setGateState('fa1_orA', (a1 | b1) === 1);
+  function setGate(id, val) {
+    const g = document.getElementById(id); if (!g) return;
+    if (val) g.classList.add('on'); else g.classList.remove('on');
   }
-
-  function setGateState(id, active) {
-    const el = document.getElementById(id);
-    if (!el) return;
-    if (active) el.classList.add('active'); else el.classList.remove('active');
+  function setTrace(id, val) {
+    const t = document.getElementById(id); if (!t) return;
+    if (val) t.classList.add('on'); else t.classList.remove('on');
+  }
+  function highlightResultPill(anyHigh) {
+    const pill = document.querySelector('.result-pill');
+    if (!pill) return;
+    if (anyHigh) pill.classList.add('on'); else pill.classList.remove('on');
   }
 
   </script>
