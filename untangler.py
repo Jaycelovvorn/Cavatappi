@@ -42,10 +42,14 @@ class VHDLLogicGates:
     def evaluate(self, gate_type, *inputs):
         if gate_type not in self.operations:
             raise ValueError(f"Unknown gate type: {gate_type}")
+        
         if gate_type == 'NOT' and len(inputs) != 1:
             raise ValueError("NOT gate requires exactly one input")
         elif gate_type != 'NOT' and len(inputs) != 2:
             raise ValueError(f"{gate_type} gate requires exactly two inputs")
+
         return self.operations[gate_type](*inputs)
 
-# utility functions included in index.html's embedded python snippet
+# Example usage:
+if __name__ == "__main__":
+    vhdl = VHDLLogicGates()
