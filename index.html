@@ -1,0 +1,233 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>16-bit Adder/Subtractor — GitHub Pages</title>
+  <style>
+    :root{ --bg:#ffffff; --card:#fbfbff; --muted:#666; --accent:#0b5cff; --border:#e1e4ea }
+    html,body{height:100%}
+    body { font-family: system-ui, -apple-system, 'Segoe UI', Roboto, Arial; margin: 24px; background:var(--bg); color:#111 }
+    .app { max-width:1100px; margin:0 auto }
+    header{display:flex;justify-content:space-between;align-items:center;margin-bottom:18px}
+    h1{font-size:1.25rem;margin:0}
+    .controls{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+    input[type=number], select{ padding:8px; border:1px solid var(--border); border-radius:6px; font-size:0.95rem }
+    button{ background:var(--accent); color:white; border:none; padding:8px 12px; border-radius:6px; cursor:pointer }
+    button:active{ transform: translateY(1px) }
+    .row { margin-bottom: 12px; }
+    pre { background:#f8f8f8; padding:12px; border:1px solid #eee; overflow:auto; max-height:360px; white-space:pre-wrap }
+    .cards { display:flex; gap:16px; align-items:flex-start; margin-top:12px }
+    .card { flex:1; min-width:260px; background:var(--card); border-radius:8px; padding:12px; box-shadow: 0 1px 2px rgba(20,30,60,0.04) }
+    .flags { font-family: monospace; margin-top:8px }
+    label { margin-right:8px; display:inline-flex; align-items:center; gap:6px }
+    .small { font-size: 0.9rem; color:var(--muted) }
+    .binary { font-family: monospace; font-size:0.95rem; letter-spacing:1px }
+    .muted{color:var(--muted)}
+  </style>
+</head>
+<body>
+  <h1>16-bit Adder / Subtractor (Gate-level simulation in browser)</h1>
+
+  <div class="row app">
+    <header>
+      <h1>16-bit Adder / Subtractor / Multiply / Divide</h1>
+      <div class="small muted">Gate-level add/sub; shift-add multiply; long division for div</div>
+    </header>
+
+    <div class="controls">
+      <label>A <input id="A" type="number" min="0" max="65535" value="5"></label>
+      <label>B <input id="B" type="number" min="0" max="65535" value="3"></label>
+      <label>Op
+        <select id="OP">
+          <option value="ADD">Add</option>
+          <option value="SUB">Subtract</option>
+          <option value="MUL">Multiply</option>
+          <option value="DIV">Divide</option>
+        </select>
+      </label>
+      <button id="compute">Compute</button>
+    </div>
+  </div>
+
+  <div class="cards">
+    <div class="card">
+      <h3>Result</h3>
+  <div id="resultDisplay" class="small">—</div>
+  <div class="flags" id="flags"></div>
+  <h4>Binary</h4>
+  <pre id="binary" class="binary"></pre>
+    </div>
+
+    <div class="card">
+      <h3>VHDL Sources (fetched from repo)</h3>
+      <h4>adder_subtractor_16.vhd</h4>
+      <pre id="vhdl1">Loading…</pre>
+      <h4>tb_adder_subtractor_16.vhd</h4>
+      <pre id="vhdl2">Loading…</pre>
+    </div>
+  </div>
+
+  <script>
+    // Gate-level 16-bit add/sub implemented in JS bit-by-bit
+    function add_sub_16(a, b, sub) {
+      const mask = 0xFFFF;
+      a = a & mask; b = b & mask;
+      // conditional invert of B
+      const bx = b ^ (sub ? mask : 0);
+
+      let result = 0;
+      let carry = sub ? 1 : 0; // initial carry-in = SUB
+
+      // compute bit-by-bit
+      for (let i = 0; i < 16; ++i) {
+        const ai = (a >> i) & 1;
+        const bi = (bx >> i) & 1;
+        const s = ai ^ bi ^ carry; // sum bit
+        result |= (s << i);
+        const cout = (ai & bi) | (bi & carry) | (ai & carry);
+        carry = cout;
+      }
+
+      const carryOut = carry & 1;
+
+      // compute carry into MSB for overflow detection
+      carry = sub ? 1 : 0;
+      for (let i = 0; i < 15; ++i) {
+        const ai = (a >> i) & 1;
+        const bi = (bx >> i) & 1;
+        const cout = (ai & bi) | (bi & carry) | (ai & carry);
+        carry = cout;
+      }
+      const carryIntoMSB = carry & 1;
+      const overflow = (carryIntoMSB ^ carryOut) & 1;
+      const zero = ((result & mask) === 0) ? 1 : 0;
+      const signed = (result & 0x8000) ? result - 0x10000 : result;
+
+      return {
+        A: a, B: b, SUB: sub,
+        Result: result & mask, Result_signed: signed,
+        CarryOut: carryOut, Overflow: overflow, Zero: zero,
+        hex: '0x' + ((result & mask).toString(16).toUpperCase().padStart(4,'0'))
+      };
+    }
+
+    // Shift-add multiplication (16x16 -> 32 bits)
+    function mul_16(a, b) {
+      const mask = 0xFFFF;
+      a = a & mask; b = b & mask;
+      let product = 0;
+      for (let i = 0; i < 16; ++i) {
+        if ((b >> i) & 1) {
+          product = (product + (a << i)) >>> 0; // keep as unsigned 32-bit
+        }
+      }
+      const low = product & 0xFFFF;
+      const high = (product >>> 16) & 0xFFFF;
+      const signed32 = (product & 0x80000000) ? product - 0x100000000 : product;
+      const overflow = high !== 0; // overflow if high 16 bits non-zero (unsigned)
+      return {
+        A: a, B: b,
+        Product32: product >>> 0,
+        High16: high, Low16: low,
+        ProductHex: '0x' + (product >>> 0).toString(16).toUpperCase().padStart(8,'0'),
+        Overflow: overflow
+      };
+    }
+
+    // Basic integer division: returns quotient and remainder (unsigned semantics)
+    function div_16(a, b) {
+      const mask = 0xFFFF;
+      a = a & mask; b = b & mask;
+      if (b === 0) return { DivByZero: true };
+      const q = Math.floor(a / b) & mask;
+      const r = a % b;
+      return { A: a, B: b, Quotient: q, Remainder: r, QHex: '0x' + q.toString(16).toUpperCase().padStart(4,'0'), RHex: '0x' + r.toString(16).toUpperCase().padStart(4,'0') };
+    }
+
+    function toBin16(x) {
+      return (x & 0xFFFF).toString(2).padStart(16,'0').replace(/(.{4})/g,'$1 ').trim();
+    }
+
+    async function tryFetchPaths(id, paths) {
+      // Try fetch on multiple candidate paths to work across GH Pages repo URLs and local servers
+      for (const p of paths) {
+        try {
+          const r = await fetch(p, {cache: 'no-store'});
+          if (!r.ok) throw new Error(`HTTP ${r.status}`);
+          const txt = await r.text();
+          return {ok: true, text: txt, path: p};
+        } catch (e) {
+          // continue to next path
+        }
+      }
+      return {ok: false};
+    }
+
+    async function fetchVHDL(id, filename) {
+      // Candidate paths: relative, same dir, absolute root. This helps when the site is served from
+      // a repo subpath (GitHub Pages) or from a local HTTP server.
+      const candidates = [];
+      // 1) relative to current document
+      candidates.push('./' + filename);
+      // 2) same directory as current path
+      const basePath = window.location.pathname.replace(/\/[^/]*$/, '/');
+      candidates.push(basePath + filename);
+      // 3) site root
+      candidates.push('/' + filename);
+      // 4) raw.githubusercontent fallback is not attempted automatically (requires repo info)
+
+      const res = await tryFetchPaths(id, candidates);
+      const target = document.getElementById(id);
+      if (res.ok) {
+        target.textContent = res.text;
+      } else {
+        target.textContent = `${filename} could not be fetched. CORS or file serving may be blocking access.\n` +
+          `If you're testing locally, run a simple HTTP server in the folder (see README).`;
+      }
+    }
+
+    document.getElementById('compute').addEventListener('click', () => {
+      const A = parseInt(document.getElementById('A').value || '0', 10);
+      const B = parseInt(document.getElementById('B').value || '0', 10);
+      const OP = document.getElementById('OP').value;
+      if (OP === 'ADD') {
+        const res = add_sub_16(A, B, 0);
+        document.getElementById('resultDisplay').textContent = `Add: ${res.Result} (signed=${res.Result_signed}) HEX=${res.hex}`;
+        document.getElementById('flags').textContent = `CarryOut=${res.CarryOut}  Overflow=${res.Overflow}  Zero=${res.Zero}`;
+        document.getElementById('binary').textContent = toBin16(res.Result);
+      } else if (OP === 'SUB') {
+        const res = add_sub_16(A, B, 1);
+        document.getElementById('resultDisplay').textContent = `Sub: ${res.Result} (signed=${res.Result_signed}) HEX=${res.hex}`;
+        document.getElementById('flags').textContent = `CarryOut=${res.CarryOut}  Overflow=${res.Overflow}  Zero=${res.Zero}`;
+        document.getElementById('binary').textContent = toBin16(res.Result);
+      } else if (OP === 'MUL') {
+        const res = mul_16(A, B);
+        document.getElementById('resultDisplay').textContent = `Product = ${res.Product32} (HIGH=0x${res.High16.toString(16).toUpperCase().padStart(4,'0')} LOW=0x${res.Low16.toString(16).toUpperCase().padStart(4,'0')}) HEX=${res.ProductHex}`;
+        document.getElementById('flags').textContent = `Overflow=${res.Overflow ? 1 : 0}`;
+        // show full 32-bit binary separated
+        const full = (res.Product32 >>> 0).toString(2).padStart(32,'0');
+        document.getElementById('binary').textContent = full.slice(0,16) + ' ' + full.slice(16);
+      } else if (OP === 'DIV') {
+        const res = div_16(A, B);
+        if (res.DivByZero) {
+          document.getElementById('resultDisplay').textContent = 'Error: divide by zero';
+          document.getElementById('flags').textContent = '';
+          document.getElementById('binary').textContent = '';
+        } else {
+          document.getElementById('resultDisplay').textContent = `Quotient=${res.Quotient} Remainder=${res.Remainder} QHEX=${res.QHex} RHEX=${res.RHex}`;
+          document.getElementById('flags').textContent = '';
+          document.getElementById('binary').textContent = toBin16(res.Quotient) + '  (quotient)\n' + toBin16(res.Remainder) + '  (remainder)';
+        }
+      }
+    });
+
+    // initial compute
+    document.getElementById('compute').click();
+
+  // fetch VHDL files (try multiple fallbacks)
+  fetchVHDL('vhdl1','adder_subtractor_16.vhd');
+  fetchVHDL('vhdl2','tb_adder_subtractor_16.vhd');
+  </script>
+</body>
+</html>
