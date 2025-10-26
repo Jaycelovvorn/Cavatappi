@@ -1,0 +1,296 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Logic Gate Calculator — 2-bit Adder</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <main class="container">
+    <header>
+      <h1>Logic Gate Calculator — 2-bit Adder</h1>
+      <p class="subtitle">Matte modern UI • Pyodide-powered Python interpreter</p>
+    </header>
+
+    <nav class="tabs" role="tablist" aria-label="Views">
+      <button class="tab active" data-target="calc" role="tab" aria-selected="true">Calculator</button>
+      <button class="tab" data-target="circuit" role="tab" aria-selected="false">Circuit</button>
+    </nav>
+
+    <section id="calc" class="tab-content active" role="tabpanel">
+      <h2>2-Bit Adder — Inputs</h2>
+
+      <div class="inputs-grid">
+        <div class="input-col">
+          <h3>A (most → least)</h3>
+          <label><input type="radio" name="A1" value="1"> 1</label>
+          <label><input type="radio" name="A1" value="0" checked> 0</label>
+          <label class="small">A1</label>
+
+          <label><input type="radio" name="A0" value="1"> 1</label>
+          <label><input type="radio" name="A0" value="0" checked> 0</label>
+          <label class="small">A0</label>
+        </div>
+
+        <div class="input-col">
+          <h3>B (most → least)</h3>
+          <label><input type="radio" name="B1" value="1"> 1</label>
+          <label><input type="radio" name="B1" value="0" checked> 0</label>
+          <label class="small">B1</label>
+
+          <label><input type="radio" name="B0" value="1"> 1</label>
+          <label><input type="radio" name="B0" value="0" checked> 0</label>
+          <label class="small">B0</label>
+        </div>
+      </div>
+
+      <div class="controls">
+        <button id="computeBtn" class="btn">Compute Sum</button>
+        <button id="randomBtn" class="btn alt">Randomize</button>
+      </div>
+
+      <div class="output">
+        <h3>Result (S2 S1 S0)</h3>
+        <div id="resultBox" class="result">—</div>
+        <p class="note">S2 is the final carry-out; S1 S0 are the 2-bit sum.</p>
+      </div>
+
+      <div class="explain">
+        <p>Under the hood: the page runs a Python interpreter (Pyodide) in your browser that uses logic gates (AND/OR/XOR/etc.) to compute the full addition. Switch to the <strong>Circuit</strong> tab to see the gates light up.</p>
+      </div>
+    </section>
+
+    <section id="circuit" class="tab-content" role="tabpanel" aria-hidden="true">
+      <h2>Visual Circuit (simplified)</h2>
+      <p class="note">Colors: green = HIGH (1), gray = LOW (0)</p>
+
+      <!-- Simple illustrative circuit: two full adders (blocks) -->
+      <div id="circuitSVG" class="diagram">
+        <!-- We'll keep this simple: boxes representing gates and labels -->
+        <div class="fa-row">
+          <div class="fa-block" id="fa0">
+            <div class="fa-title">Full Adder (LSB)</div>
+            <div class="gate xor" id="fa0_xorA">XOR</div>
+            <div class="gate and" id="fa0_andA">AND</div>
+            <div class="gate or" id="fa0_orA">OR</div>
+            <div class="fa-out">
+              <div>Sum: <span id="fa0_sum" class="light">0</span></div>
+              <div>Carry: <span id="fa0_cout" class="light">0</span></div>
+            </div>
+          </div>
+
+          <div class="fa-block" id="fa1">
+            <div class="fa-title">Full Adder (MSB)</div>
+            <div class="gate xor" id="fa1_xorA">XOR</div>
+            <div class="gate and" id="fa1_andA">AND</div>
+            <div class="gate or" id="fa1_orA">OR</div>
+            <div class="fa-out">
+              <div>Sum: <span id="fa1_sum" class="light">0</span></div>
+              <div>Carry: <span id="fa1_cout" class="light">0</span></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <footer>
+      <p>Made with Pyodide • Good for embedding in EduBlogs (iframe) or GitHub Pages</p>
+    </footer>
+  </main>
+
+  <!-- Pyodide (loaded from CDN) -->
+  <script src="https://cdn.jsdelivr.net/pyodide/v0.29.0/full/pyodide.js"></script>
+
+  <script>
+  // Tabs behavior
+  document.querySelectorAll('.tab').forEach(btn => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('.tab, .tab-content').forEach(el => el.classList.remove('active'));
+      document.querySelectorAll('.tab').forEach(t => t.setAttribute('aria-selected', 'false'));
+      btn.classList.add('active');
+      btn.setAttribute('aria-selected', 'true');
+      const target = btn.getAttribute('data-target');
+      const tc = document.getElementById(target);
+      tc.classList.add('active');
+    });
+  });
+
+  // Helper: read radio value
+  function readBit(name) {
+    const radios = document.getElementsByName(name);
+    for (const r of radios) if (r.checked) return r.value === '1';
+    return false;
+  }
+
+  // Initialize Pyodide and load the Python logic (the interpreter + adder wrapper)
+  let pyodideReady = false;
+  let pyodide = null;
+  async function initPyodide() {
+    try {
+      pyodide = await loadPyodide({
+        indexURL: "https://cdn.jsdelivr.net/pyodide/v0.29.0/full/"
+      });
+      // Load our interpreter + helper functions into the Python runtime
+      const pyCode = `
+
+class VHDLLogicGates:
+    def __init__(self):
+        self.operations = {
+            'NOT': self.not_gate,
+            'AND': self.and_gate,
+            'OR': self.or_gate,
+            'NOR': self.nor_gate,
+            'NAND': self.nand_gate,
+            'XOR': self.xor_gate,
+            'XNOR': self.xnor_gate,
+            'IMPLY': self.imply_gate,
+            'NIMPLY': self.nimply_gate
+        }
+
+    def not_gate(self, a):
+        return not a
+
+    def and_gate(self, a, b):
+        return a and b
+
+    def or_gate(self, a, b):
+        return a or b
+
+    def nor_gate(self, a, b):
+        return not (a or b)
+
+    def nand_gate(self, a, b):
+        return not (a and b)
+
+    def xor_gate(self, a, b):
+        return a != b
+
+    def xnor_gate(self, a, b):
+        return a == b
+
+    def imply_gate(self, a, b):
+        return (not a) or b
+
+    def nimply_gate(self, a, b):
+        return a and (not b)
+
+    def evaluate(self, gate_type, *inputs):
+        if gate_type not in self.operations:
+            raise ValueError(f"Unknown gate type: {gate_type}")
+        if gate_type == 'NOT' and len(inputs) != 1:
+            raise ValueError('NOT gate requires exactly one input')
+        elif gate_type != 'NOT' and len(inputs) != 2:
+            raise ValueError(f'{gate_type} gate requires exactly two inputs')
+        return self.operations[gate_type](*inputs)
+
+# Build a full adder using the gates (returns sum, carry)
+def full_adder_bit(a, b, cin):
+    g = VHDLLogicGates()
+    # sum = a XOR b XOR cin
+    s1 = g.xor_gate(a, b)
+    s = g.xor_gate(s1, cin)
+    # carry = majority(a,b,cin) = (a and b) or (b and cin) or (a and cin)
+    c1 = g.and_gate(a, b)
+    c2 = g.and_gate(b, cin)
+    c3 = g.and_gate(a, cin)
+    cout = g.or_gate(g.or_gate(c1, c2), c3)
+    return s, cout
+
+# 2-bit adder: a = [a1, a0], b = [b1, b0] -> returns [s2, s1, s0] (s2 is final carry)
+def two_bit_adder(a_bits, b_bits):
+    a1, a0 = a_bits
+    b1, b0 = b_bits
+    s0, c0 = full_adder_bit(a0, b0, False)
+    s1, c1 = full_adder_bit(a1, b1, c0)
+    s2 = c1
+    # Return as ints 0/1
+    return [1 if s2 else 0, 1 if s1 else 0, 1 if s0 else 0]
+
+`;
+      await pyodide.runPythonAsync(pyCode);
+      pyodideReady = true;
+      document.getElementById('computeBtn').disabled = false;
+    } catch (err) {
+      console.error("Pyodide init failed:", err);
+      alert("Failed to initialize the Python runtime. Check console for details.");
+    }
+  }
+
+  // Kick off init
+  initPyodide();
+
+  // Compute button
+  document.getElementById('computeBtn').addEventListener('click', async () => {
+    if (!pyodideReady) {
+      alert('Still loading Python runtime — please wait a moment.');
+      return;
+    }
+    const a1 = readBit('A1'), a0 = readBit('A0');
+    const b1 = readBit('B1'), b0 = readBit('B0');
+
+    // Call the Python function
+    try {
+      const two_bit_adder = pyodide.globals.get('two_bit_adder');
+      // PyProxy will convert arrays/lists automatically
+      const resProxy = two_bit_adder([a1 ? 1 : 0, a0 ? 1 : 0], [b1 ? 1 : 0, b0 ? 1 : 0]);
+      // resProxy is a Python list-like PyProxy — convert to JS array
+      const res = Array.from(resProxy.toJs ? resProxy.toJs() : resProxy);
+      // Update result box
+      document.getElementById('resultBox').textContent = res.join(' ');
+      // Update circuit lights
+      updateCircuitVisuals(a1, a0, b1, b0, res);
+      // cleanup
+      resProxy.destroy && resProxy.destroy();
+    } catch (e) {
+      console.error(e);
+      alert('Error computing result — see console.');
+    }
+  });
+
+  // Randomize button
+  document.getElementById('randomBtn').addEventListener('click', () => {
+    function randSet(name) {
+      const bit = Math.random() < 0.5 ? '0' : '1';
+      const radios = document.getElementsByName(name);
+      for (const r of radios) if (r.value === bit) r.checked = true;
+    }
+    randSet('A1'); randSet('A0'); randSet('B1'); randSet('B0');
+  });
+
+  // Update circuit visuals (simple mapping)
+  function setLight(elId, val) {
+    const el = document.getElementById(elId);
+    if (!el) return;
+    el.textContent = val ? '1' : '0';
+    if (val) el.classList.add('on'); else el.classList.remove('on');
+  }
+
+  function updateCircuitVisuals(a1, a0, b1, b0, resultArr) {
+    // resultArr is [s2, s1, s0] (integers)
+    const [s2, s1, s0] = resultArr.map(x => Number(x));
+    // LSB full adder outputs
+    setLight('fa0_sum', s0);
+    setLight('fa0_cout', /* carry out from fa0 is s1's carry input — approximated */ (s1 && !a1 && !b1) ? 1 : (s0 && (a0 || b0) ? 1 : 0));
+    // MSB full adder outputs
+    setLight('fa1_sum', s1);
+    setLight('fa1_cout', s2);
+    // Also toggle gate boxes (simple heuristic: highlight if inputs cause a '1' intermediate)
+    setGateState('fa0_xorA', (a0 ^ b0) === 1);
+    setGateState('fa0_andA', (a0 & b0) === 1);
+    setGateState('fa0_orA', (a0 | b0) === 1);
+
+    setGateState('fa1_xorA', (a1 ^ b1) === 1);
+    setGateState('fa1_andA', (a1 & b1) === 1);
+    setGateState('fa1_orA', (a1 | b1) === 1);
+  }
+
+  function setGateState(id, active) {
+    const el = document.getElementById(id);
+    if (!el) return;
+    if (active) el.classList.add('active'); else el.classList.remove('active');
+  }
+
+  </script>
+</body>
+</html>
