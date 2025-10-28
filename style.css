@@ -33,7 +33,7 @@ body::-webkit-scrollbar {
 }
 
 body::-webkit-scrollbar-track {
-  background: #071126; /* deep base tone */
+  background: #071126;
   box-shadow: inset 0 0 6px rgba(125, 211, 252, 0.15);
 }
 
