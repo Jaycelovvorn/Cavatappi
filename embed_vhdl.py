@@ -20,12 +20,12 @@ def embed(index_path, vhd_files, out_path):
         content = f"{fname} not found"
         if p.exists():
             content = p.read_text()
-        # replace a simple marker if present, otherwise replace the first <pre id="vhdlX">...</pre>
+
         marker = f"<!-- EMBED:{fname} -->"
         if marker in idx:
             idx = idx.replace(marker, '<pre>' + content + '</pre>')
         else:
-            # fallback: replace the pre with id matching the filename base
+
             base = Path(fname).stem
             pre_id = 'vhdl1' if 'adder' in fname else 'vhdl2'
             idx = idx.replace(f"<pre id=\"{pre_id}\">Loading…</pre>", '<pre>' + content + '</pre>')
@@ -40,5 +40,6 @@ if __name__ == '__main__':
         out = 'index_embedded.html'
         embed(index_path, vhd_files, out)
     else:
-        # default behavior
+
         embed('index.html', ['adder_subtractor_16.vhd', 'tb_adder_subtractor_16.vhd'], 'index_embedded.html')
+
