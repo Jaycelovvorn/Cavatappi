@@ -49,21 +49,18 @@
   </div>
 
   <script>
-    // Gate-level 16-bit add/sub implemented in JS bit-by-bit
     function add_sub_16(a, b, sub) {
       const mask = 0xFFFF;
       a = a & mask; b = b & mask;
-      // conditional invert of B
       const bx = b ^ (sub ? mask : 0);
 
       let result = 0;
-      let carry = sub ? 1 : 0; // initial carry-in = SUB
+      let carry = sub ? 1 : 0;
 
-      // compute bit-by-bit
       for (let i = 0; i < 16; ++i) {
         const ai = (a >> i) & 1;
         const bi = (bx >> i) & 1;
-        const s = ai ^ bi ^ carry; // sum bit
+        const s = ai ^ bi ^ carry;
         result |= (s << i);
         const cout = (ai & bi) | (bi & carry) | (ai & carry);
         carry = cout;
@@ -71,7 +68,6 @@
 
       const carryOut = carry & 1;
 
-      // compute carry into MSB for overflow detection
       carry = sub ? 1 : 0;
       for (let i = 0; i < 15; ++i) {
         const ai = (a >> i) & 1;
@@ -92,20 +88,19 @@
       };
     }
 
-    // Shift-add multiplication (16x16 -> 32 bits)
     function mul_16(a, b) {
       const mask = 0xFFFF;
       a = a & mask; b = b & mask;
       let product = 0;
       for (let i = 0; i < 16; ++i) {
         if ((b >> i) & 1) {
-          product = (product + (a << i)) >>> 0; // keep as unsigned 32-bit
+          product = (product + (a << i)) >>> 0;
         }
       }
       const low = product & 0xFFFF;
       const high = (product >>> 16) & 0xFFFF;
       const signed32 = (product & 0x80000000) ? product - 0x100000000 : product;
-      const overflow = high !== 0; // overflow if high 16 bits non-zero (unsigned)
+      const overflow = high !== 0;
       return {
         A: a, B: b,
         Product32: product >>> 0,
@@ -115,7 +110,6 @@
       };
     }
 
-    // Basic integer division: returns quotient and remainder (unsigned semantics)
     function div_16(a, b) {
       const mask = 0xFFFF;
       a = a & mask; b = b & mask;
@@ -130,7 +124,7 @@
     }
 
     async function tryFetchPaths(id, paths) {
-      // Try fetch on multiple candidate paths to work across GH Pages repo URLs and local servers
+
       for (const p of paths) {
         try {
           const r = await fetch(p, {cache: 'no-store'});
@@ -138,24 +132,23 @@
           const txt = await r.text();
           return {ok: true, text: txt, path: p};
         } catch (e) {
-          // continue to next path
+
         }
       }
       return {ok: false};
     }
 
     async function fetchVHDL(id, filename) {
-      // Candidate paths: relative, same dir, absolute root. This helps when the site is served from
-      // a repo subpath (GitHub Pages) or from a local HTTP server.
+
       const candidates = [];
-      // 1) relative to current document
+
       candidates.push('./' + filename);
-      // 2) same directory as current path
+
       const basePath = window.location.pathname.replace(/\/[^/]*$/, '/');
       candidates.push(basePath + filename);
-      // 3) site root
+
       candidates.push('/' + filename);
-      // 4) raw.githubusercontent fallback is not attempted automatically (requires repo info)
+
 
       const res = await tryFetchPaths(id, candidates);
       const target = document.getElementById(id);
@@ -202,15 +195,16 @@
       }
     });
 
-    // initial compute
+
     document.getElementById('compute').click();
 
-  // fetch VHDL files (try multiple fallbacks)
+
   fetchVHDL('vhdl1','adder_subtractor_16.vhd');
   fetchVHDL('vhdl2','tb_adder_subtractor_16.vhd');
   </script>
 </body>
 </html>
+
 
 
 
