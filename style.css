@@ -47,3 +47,13 @@ body::-webkit-scrollbar-thumb {
 body::-webkit-scrollbar-thumb:hover {
   background: linear-gradient(180deg, #7dd3fc, #38bdf8);
   box-shadow: 0 0 16px #7dd3fc, 0 0 24px #38bdf8 inset;
+
+
+.container {
+max-width: 740px;
+margin: 0 auto;
+background: #0b1220;
+padding: 28px;
+border-radius: 12px;
+box-shadow: 0 10px 30px rgba(2, 6, 23, 0.6);
+}
