@@ -1,6 +1,6 @@
 from flask import Flask, render_template, request, jsonify
 from pathlib import Path
-
+# For local testing
 app = Flask(__name__)
 
 BASE = Path(__file__).resolve().parent
@@ -21,7 +21,7 @@ def add_sub_16(a_int: int, b_int: int, sub: int):
         cout = (ai & bi) | (bi & carry) | (ai & carry)
         carry = cout
     carry_out = carry
-    # compute carry into MSB
+    
     carry = sub
     for i in range(15):
         ai = (a >> i) & 1
@@ -120,3 +120,4 @@ def api_compute():
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=5000, debug=True)
+
