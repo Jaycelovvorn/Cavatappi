@@ -53,6 +53,7 @@ body::-webkit-scrollbar-thumb:hover {
 max-width: 740px;
 background: #0b1220;
 margin: 0 auto;
+padding: 28px;
 border-radius: 12px;
 box-shadow: 0 10px 30px rgba(2, 6, 23, 0.6)
 z-index:100
