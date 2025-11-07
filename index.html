@@ -13,7 +13,6 @@
       <h1>16-bit Adder / Subtractor / Multiplier / Divider</h1>
       <div class="small muted">Gate-level add/sub; shift-add multiply; long division for div</div>
     </header>
-
     <div class="controls">
       <label>A <input id="A" type="number" min="0" max="65535" value="0"></label>
       <label>B <input id="B" type="number" min="0" max="65535" value="0"></label>
@@ -35,7 +34,7 @@
   <div class="flags" id="flags"></div>
   <h4>Binary</h4>
   <pre id="binary" class="binary"></pre>
-  <div class="container test">
+  <div class="container calign">
     Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat. Duis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla pariatur. Excepteur sint occaecat cupidatat non proident, sunt in culpa qui officia deserunt mollit anim id est laborum.
   </div>
     </div>
@@ -52,10 +51,8 @@
       const mask = 0xFFFF;
       a = a & mask; b = b & mask;
       const bx = b ^ (sub ? mask : 0);
-
       let result = 0;
       let carry = sub ? 1 : 0;
-
       for (let i = 0; i < 16; ++i) {
         const ai = (a >> i) & 1;
         const bi = (bx >> i) & 1;
@@ -64,9 +61,7 @@
         const cout = (ai & bi) | (bi & carry) | (ai & carry);
         carry = cout;
       }
-
       const carryOut = carry & 1;
-
       carry = sub ? 1 : 0;
       for (let i = 0; i < 15; ++i) {
         const ai = (a >> i) & 1;
@@ -78,7 +73,6 @@
       const overflow = (carryIntoMSB ^ carryOut) & 1;
       const zero = ((result & mask) === 0) ? 1 : 0;
       const signed = (result & 0x8000) ? result - 0x10000 : result;
-
       return {
         A: a, B: b, SUB: sub,
         Result: result & mask, Result_signed: signed,
@@ -86,7 +80,6 @@
         hex: '0x' + ((result & mask).toString(16).toUpperCase().padStart(4,'0'))
       };
     }
-
     function mul_16(a, b) {
       const mask = 0xFFFF;
       a = a & mask; b = b & mask;
@@ -108,7 +101,6 @@
         Overflow: overflow
       };
     }
-
     function div_16(a, b) {
       const mask = 0xFFFF;
       a = a & mask; b = b & mask;
@@ -117,11 +109,9 @@
       const r = a % b;
       return { A: a, B: b, Quotient: q, Remainder: r, QHex: '0x' + q.toString(16).toUpperCase().padStart(4,'0'), RHex: '0x' + r.toString(16).toUpperCase().padStart(4,'0') };
     }
-
     function toBin16(x) {
       return (x & 0xFFFF).toString(2).padStart(16,'0').replace(/(.{4})/g,'$1 ').trim();
     }
-
     async function tryFetchPaths(id, paths) {
 
       for (const p of paths) {
@@ -131,24 +121,16 @@
           const txt = await r.text();
           return {ok: true, text: txt, path: p};
         } catch (e) {
-
         }
       }
       return {ok: false};
     }
-
     async function fetchVHDL(id, filename) {
-
       const candidates = [];
-
       candidates.push('./' + filename);
-
       const basePath = window.location.pathname.replace(/\/[^/]*$/, '/');
       candidates.push(basePath + filename);
-
       candidates.push('/' + filename);
-
-
       const res = await tryFetchPaths(id, candidates);
       const target = document.getElementById(id);
       if (res.ok) {
@@ -158,7 +140,6 @@
           `If you're testing locally, run a simple HTTP server in the folder (see README).`;
       }
     }
-
     document.getElementById('compute').addEventListener('click', () => {
       const A = parseInt(document.getElementById('A').value || '0', 10);
       const B = parseInt(document.getElementById('B').value || '0', 10);
@@ -193,20 +174,9 @@
         }
       }
     });
-
-
     document.getElementById('compute').click();
-
-
   fetchVHDL('vhdl1','adder_subtractor_16.vhd');
   fetchVHDL('vhdl2','tb_adder_subtractor_16.vhd');
   </script>
 </body>
 </html>
-
-
-
-
-
-
-
