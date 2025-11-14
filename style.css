@@ -122,3 +122,42 @@ input[type="button"]:active {
   background: linear-gradient(135deg, #0c1c30 0%, #10243a 100%);
   box-shadow: 0 0 4px #7dd3fc88 inset;
 }
+
+
+
+
+
+
+
+
+p {
+margin: 6px 0 0;
+line-height: 1.5;
+color: #e6eef8;
+}
+strong {
+color: #ffffff;
+}
+.small {
+font-size: 13px;
+color: #94a3b8;
+}
+footer {
+margin-top: 18px;
+text-align: right;
+color: #94a3b8;
+font-size: 12px;
+}
+
+textarea {
+  background-color: #071126;
+  color: #7dd3fc;
+  border: 1px solid #7dd3fc;
+  box-shadow: 0 0 6px #7dd3fc55;
+  border-radius: 8px;
+  transition: box-shadow 0.3s ease;
+}
+textarea:focus {
+  box-shadow: 0 0 12px #7dd3fcaa;
+  outline: none;
+}
