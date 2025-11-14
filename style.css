@@ -70,3 +70,55 @@ background: #ffffff05;
 padding: 14px;
 border-radius: 8px;
 }
+
+
+
+
+
+
+
+
+
+
+
+
+.wp-block-search .wp-block-search__input {
+    background-color: #071126;
+    color: #7dd3fc;
+    border: 1px solid #7dd3fc;
+    box-shadow: 0 0 2px #7dd3fc55;
+    border-radius: 8px;
+    transition: box-shadow 0.3s ease;
+    Margin: 4px;
+}
+
+button,
+input[type="submit"],
+input[type="button"],
+.wp-block-button__link {
+  background: linear-gradient(135deg, #0b1220 0%, #10243a 100%);
+  color: #7dd3fc;
+  border: 1px solid #7dd3fc;
+  border-radius: 8px;
+  padding: 8px 16px;
+  font-weight: 600;
+  transition: all 0.3s ease, background-position 0.6s ease;
+  box-shadow: 0 0 6px #7dd3fc55;
+  background-size: 200% 200%;
+}
+
+button:hover,
+input[type="submit"]:hover,
+input[type="button"]:hover,
+.wp-block-button__link:hover {
+  background: linear-gradient(135deg, #0b1220 0%, #164060 100%);
+  box-shadow: 0 0 14px #7dd3fcaa;
+  cursor: pointer;
+}
+
+button:active,
+input[type="submit"]:active,
+input[type="button"]:active {
+  background: linear-gradient(135deg, #0c1c30 0%, #10243a 100%);
+  box-shadow: 0 0 4px #7dd3fc88 inset;
+}
