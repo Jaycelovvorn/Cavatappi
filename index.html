@@ -4,9 +4,57 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <link rel="stylesheet" href="style.css">
+  <style>
+  /* Comments overlay styles */
+  #comments-overlay { position: fixed; inset: 0; display: none; z-index: 9999; align-items: center; justify-content: center; }
+  #comments-overlay.show { display: flex; }
+  #comments-overlay .backdrop { position: absolute; inset: 0; background: rgba(2,6,23,0.6); backdrop-filter: blur(4px); }
+  #comments-overlay .panel {
+    position: relative;
+    width: min(1100px, 94vw);
+    height: min(820px, 90vh);
+    border-radius: 12px;
+    overflow: hidden;
+    box-shadow: 0 20px 60px rgba(2,6,23,0.7);
+    background: transparent;
+    border: 1px solid rgba(125,211,252,0.06);
+  }
+  #comments-overlay iframe {
+    width: 100%;
+    height: 100%;
+    border: 0;
+    background: transparent;
+  }
+  #comments-overlay .close-btn {
+    position: absolute;
+    top: 10px;
+    right: 10px;
+    z-index: 2;
+    background: linear-gradient(135deg,#0b1220 0%,#10243a 100%);
+    color: #7dd3fc;
+    border: 1px solid #7dd3fc;
+    border-radius: 8px;
+    padding: 6px 10px;
+    cursor: pointer;
+    box-shadow: 0 0 8px #7dd3fc55;
+  }
+  </style>
   <title>16-bit Adder/Subtractor</title>
 </head>
 <body>
+<div class="tabs">
+    <button id="comments-toggle" aria-expanded="false">Comments</button>
+  </div>
+  
+  <!-- overlay: hidden by default; iframe loads local comments.html -->
+  <div id="comments-overlay" aria-hidden="true">
+    <div class="backdrop" data-role="backdrop"></div>
+    <div class="panel" role="dialog" aria-modal="true">
+      <button class="close-btn" aria-label="Close comments">✕</button>
+      <iframe id="comments-iframe" src="comments.html" title="Comments (overlay)"></iframe>
+    </div>
+  </div>
+
   <h1>16-bit Adder / Subtractor (Gate-level simulation in browser)</h1>
   <div class="row app">
     <header>
@@ -61,6 +109,40 @@ bLANK
     </div>
   </div>
   <script>
+    // comments overlay toggle
+(function(){
+  const toggle = document.getElementById('comments-toggle');
+  const overlay = document.getElementById('comments-overlay');
+  const iframe = document.getElementById('comments-iframe');
+  const backdrop = overlay.querySelector('[data-role="backdrop"]');
+  const closeBtn = overlay.querySelector('.close-btn');
+
+  function showOverlay(){
+    overlay.classList.add('show');
+    overlay.setAttribute('aria-hidden','false');
+    toggle.setAttribute('aria-expanded','true');
+    // ensure iframe is loaded (src already set) — optionally focus inside
+    setTimeout(()=> {
+      try { iframe.contentWindow && iframe.contentWindow.focus(); } catch(e){}
+    },200);
+  }
+  function hideOverlay(){
+    overlay.classList.remove('show');
+    overlay.setAttribute('aria-hidden','true');
+    toggle.setAttribute('aria-expanded','false');
+  }
+
+  toggle.addEventListener('click', ()=>{
+    if (overlay.classList.contains('show')) hideOverlay();
+    else showOverlay();
+  });
+  backdrop.addEventListener('click', hideOverlay);
+  closeBtn.addEventListener('click', hideOverlay);
+  // ESC key closes overlay
+  window.addEventListener('keydown', (e)=>{
+    if (e.key === 'Escape' && overlay.classList.contains('show')) hideOverlay();
+  });
+})();
     function add_sub_16(a, b, sub) {
       const mask = 0xFFFF;
       a = a & mask; b = b & mask;

@@ -1,0 +1,19 @@
+{
+  "comments": [
+    {
+      "id": "c_example1",
+      "parentId": null,
+      "name": "Alice",
+      "text": "Nice project! Love the UI.",
+      "date": "2025-01-01T12:00:00.000Z"
+    },
+    {
+      "id": "c_example2",
+      "parentId": "c_example1",
+      "name": "Bob",
+      "text": "Thanks Alice — glad you like it.",
+      "date": "2025-01-01T13:00:00.000Z"
+    }
+  ],
+  "ratings": []
+}
