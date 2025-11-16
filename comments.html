@@ -17,19 +17,6 @@
   <div class="container" id="comments-app">
     <h1>Comments</h1>
 
-    <!-- Repo settings (optional) -->
-    <div class="card" id="repo-settings" style="margin-bottom:12px;">
-      <div class="small muted">Optional: save comments directly to this GitHub repo (requires Personal Access Token).</div>
-      <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:8px;">
-        <input id="gh-owner" placeholder="owner (e.g. your-username)" style="min-width:160px">
-        <input id="gh-repo" placeholder="repo (e.g. Cavatappi)" style="min-width:160px">
-        <input id="gh-branch" placeholder="branch (default: main)" style="min-width:120px">
-        <input id="gh-token" placeholder="Personal Access Token (paste here)" type="password" style="min-width:240px">
-        <button id="gh-save-settings" title="Save repo settings locally">Save</button>
-      </div>
-      <div class="small muted" style="margin-top:8px;">Tip: use a repo token with minimal scopes. Token is stored in your browser only.</div>
-    </div>
-
     <!-- Rating (anonymous) -->
     <div class="card" id="rating-card">
       <div class="small muted">Anonymous rating — 1 to 5 stars</div>
@@ -42,10 +29,6 @@
       <div class="small muted">Leave a comment</div>
       <div class="meta-row">
         <input id="comment-name" placeholder="Your name (required)" required>
-        <div style="margin-left:auto; display:flex; gap:8px;">
-          <button id="download-json" title="Export comments to JSON">Download JSON</button>
-          <button id="save-to-repo" title="Save comments.json to configured GitHub repo">Save to repo</button>
-        </div>
       </div>
       <textarea id="comment-text" rows="4" placeholder="Write your comment..." required></textarea>
       <div style="margin-top:8px;">
@@ -58,378 +41,223 @@
   </div>
 
   <script>
-    // Simple client-side comments storage & UI with optional GitHub repo save
-    // Data model: { id, parentId (null=root), name, text, dateISO }
-    // Ratings model: array of numbers 1..5
-    (function(){
-      const STORAGE_KEY = 'cavatappi_comments';
-      const RATINGS_KEY = 'cavatappi_ratings';
-      const USER_VOTE_KEY = 'cavatappi_user_vote';
-      const REPO_SETTINGS_KEY = 'cavatappi_repo_settings';
+  // Comments: localStorage auto-save. Fetch comments.json for initial display.
+  (function(){
+    const STORAGE_KEY = 'cavatappi_comments';
+    const RATINGS_KEY = 'cavatappi_ratings';
+    const USER_VOTE_KEY = 'cavatappi_user_vote';
 
-      const commentsListEl = document.getElementById('comments-list');
-      const nameInput = document.getElementById('comment-name');
-      const textInput = document.getElementById('comment-text');
-      const submitBtn = document.getElementById('submit-comment');
-      const ratingWidget = document.getElementById('rating-widget');
-      const ratingSummary = document.getElementById('rating-summary');
-      const downloadBtn = document.getElementById('download-json');
-      const saveToRepoBtn = document.getElementById('save-to-repo');
-      const ghOwnerInput = document.getElementById('gh-owner');
-      const ghRepoInput = document.getElementById('gh-repo');
-      const ghBranchInput = document.getElementById('gh-branch');
-      const ghTokenInput = document.getElementById('gh-token');
-      const ghSaveSettingsBtn = document.getElementById('gh-save-settings');
+    const commentsListEl = document.getElementById('comments-list');
+    const nameInput = document.getElementById('comment-name');
+    const textInput = document.getElementById('comment-text');
+    const submitBtn = document.getElementById('submit-comment');
+    const ratingWidget = document.getElementById('rating-widget');
+    const ratingSummary = document.getElementById('rating-summary');
 
-      let comments = [];
-      let ratings = [];
-      let userVote = null;
+    let comments = [];
+    let ratings = [];
+    let userVote = null;
 
-      // utilities
-      const uid = ()=> 'c' + Date.now().toString(36) + Math.random().toString(36).slice(2,8);
+    // autosize helpers
+    function autosizeTextarea(el){
+      if (!el) return;
+      el.style.height = 'auto';
+      const comp = getComputedStyle(el);
+      let max = parseFloat(comp.maxHeight);
+      if (isNaN(max) || max === 0) max = window.innerHeight * 0.5;
+      const needed = el.scrollHeight;
+      const newHeight = Math.min(needed, max);
+      el.style.height = newHeight + 'px';
+      el.style.overflowY = (needed > max) ? 'auto' : 'hidden';
+    }
+    function attachAutosize(el){
+      if (!el) return null;
+      const handler = ()=> autosizeTextarea(el);
+      el.addEventListener('input', handler);
+      autosizeTextarea(el);
+      return ()=> el.removeEventListener('input', handler);
+    }
 
-      function getRepoSettings(){ 
-        try { return JSON.parse(localStorage.getItem(REPO_SETTINGS_KEY) || 'null') || {}; } catch(e){ return {}; }
-      }
-      function saveRepoSettings(s){
-        localStorage.setItem(REPO_SETTINGS_KEY, JSON.stringify(s || {}));
-      }
+    const mainTA = document.getElementById('comment-text');
+    let mainAutosizeCleanup = attachAutosize(mainTA);
 
-      // base64 helper for unicode-safe encoding
-      function base64EncodeUnicode(str){
-        return btoa(unescape(encodeURIComponent(str)));
-      }
-
-      // fetch file sha (if exists) via GitHub API
-      async function getFileSha(owner, repo, path, branch, token){
-        const url = `https://api.github.com/repos/${owner}/${repo}/contents/${encodeURIComponent(path)}?ref=${encodeURIComponent(branch||'main')}`;
-        const res = await fetch(url, { headers: token ? { Authorization: 'token ' + token } : {} });
-        if (res.ok){
-          const j = await res.json();
-          return j.sha;
+    const uid = ()=> 'c' + Date.now().toString(36) + Math.random().toString(36).slice(2,8);
+    
+    function saveLocal(){
+      try {
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(comments));
+        localStorage.setItem(RATINGS_KEY, JSON.stringify(ratings));
+        if (userVote) localStorage.setItem(USER_VOTE_KEY, String(userVote)); 
+        else localStorage.removeItem(USER_VOTE_KEY);
+      } catch(e){}
+    }
+    
+    function loadLocal(){
+      try {
+        const c = JSON.parse(localStorage.getItem(STORAGE_KEY) || 'null');
+        const r = JSON.parse(localStorage.getItem(RATINGS_KEY) || 'null');
+        const uv = localStorage.getItem(USER_VOTE_KEY);
+        if (Array.isArray(c)) comments = c;
+        if (Array.isArray(r)) ratings = r;
+        if (uv) {
+          const v = parseInt(uv,10);
+          if (!Number.isNaN(v) && v>=1 && v<=5) userVote = v;
         }
-        return null; // not found or no perms
-      }
+      } catch(e){}
+    }
 
-      // save comments+ratings JSON to repo (create or update)
-      async function saveToRepo(payload, owner, repo, branch, token, path='comments.json'){
-        if (!owner || !repo || !token) throw new Error('missing repo or token');
-        const content = base64EncodeUnicode(JSON.stringify(payload, null, 2));
-        const sha = await getFileSha(owner, repo, path, branch, token);
-        const putUrl = `https://api.github.com/repos/${owner}/${repo}/contents/${encodeURIComponent(path)}`;
-        const body = { message: 'Update comments.json via site', content, branch: branch || 'main' };
-        if (sha) body.sha = sha;
-        const res = await fetch(putUrl, {
-          method: 'PUT',
-          headers: Object.assign({'Content-Type':'application/json'}, token ? { Authorization: 'token ' + token } : {}),
-          body: JSON.stringify(body)
-        });
-        if (!res.ok){
-          const txt = await res.text();
-          throw new Error('GitHub API error: ' + res.status + ' ' + txt);
-        }
-        return await res.json();
-      }
-
-      function saveLocal(){
-        try {
-          localStorage.setItem(STORAGE_KEY, JSON.stringify(comments));
-          localStorage.setItem(RATINGS_KEY, JSON.stringify(ratings));
-          if (userVote) localStorage.setItem(USER_VOTE_KEY, String(userVote)); else localStorage.removeItem(USER_VOTE_KEY);
-        } catch(e){}
-      }
-      function loadLocal(){
-        try {
-          const c = JSON.parse(localStorage.getItem(STORAGE_KEY) || 'null');
-          const r = JSON.parse(localStorage.getItem(RATINGS_KEY) || 'null');
-          const uv = localStorage.getItem(USER_VOTE_KEY);
-          if (Array.isArray(c)) comments = c;
-          if (Array.isArray(r)) ratings = r;
-          if (uv) {
-            const v = parseInt(uv,10);
-            if (!Number.isNaN(v) && v>=1 && v<=5) userVote = v;
-          }
-          // load repo settings into form
-          const s = getRepoSettings();
-          if (s.owner) ghOwnerInput.value = s.owner || '';
-          if (s.repo) ghRepoInput.value = s.repo || '';
-          if (s.branch) ghBranchInput.value = s.branch || '';
-          if (s.token) ghTokenInput.value = s.token || '';
-        } catch(e){}
-      }
-
-      // Try fetch comments.json for initial data (will fetch the hosted file)
-      fetch('comments.json').then(r=>{
-        if (!r.ok) throw new Error('no json');
-        return r.json();
-      }).then(data=>{
+    // Load comments.json, then overlay localStorage
+    fetch('comments.json')
+      .then(r => r.ok ? r.json() : Promise.reject('no json'))
+      .then(data => {
         if (Array.isArray(data.comments)) comments = data.comments;
         if (Array.isArray(data.ratings)) ratings = data.ratings;
-        loadLocal();
+        loadLocal(); // overlay localStorage on top
         renderAll();
-      }).catch(()=> {
-        // fallback to local storage
-        loadLocal();
+      })
+      .catch(() => {
+        loadLocal(); // fallback to localStorage only
         renderAll();
       });
 
-      // wire repo-settings save
-      ghSaveSettingsBtn.addEventListener('click', ()=>{
-        const s = { owner: (ghOwnerInput.value||'').trim(), repo: (ghRepoInput.value||'').trim(), branch: (ghBranchInput.value||'').trim() || 'main', token: (ghTokenInput.value||'').trim() };
-        saveRepoSettings(s);
-        alert('Repo settings saved locally. Use "Save to repo" to write comments.json.');
+    function buildTree(flat){
+      const map = new Map();
+      flat.forEach(c => map.set(c.id, {...c, children: []}));
+      const roots = [];
+      map.forEach(node=>{
+        if (node.parentId) {
+          const p = map.get(node.parentId);
+          if (p) p.children.push(node);
+          else roots.push(node);
+        } else roots.push(node);
       });
+      function sortRec(arr){ arr.sort((a,b)=> new Date(a.date) - new Date(b.date)); arr.forEach(n=>sortRec(n.children)); }
+      sortRec(roots);
+      return roots;
+    }
 
-      // "Save to repo" button handler: will attempt to commit comments.json using provided token
-      saveToRepoBtn.addEventListener('click', async ()=>{
-        const s = getRepoSettings();
-        if (!s.owner || !s.repo || !s.token){ alert('Fill owner, repo and token in repo settings first.'); return; }
-        const payload = { comments, ratings, exportedAt: (new Date()).toISOString() };
-        try {
-          saveToRepoBtn.disabled = true;
-          saveToRepoBtn.textContent = 'Saving…';
-          await saveToRepo(payload, s.owner, s.repo, s.branch || 'main', s.token, 'comments.json');
-          alert('comments.json saved to repo successfully.');
-        } catch (err){
-          console.error(err);
-          alert('Error saving to repo: ' + (err.message||err));
-        } finally {
-          saveToRepoBtn.disabled = false;
-          saveToRepoBtn.textContent = 'Save to repo';
-        }
+    function renderAll(){
+      renderRating();
+      renderComments();
+    }
+
+    function renderRating(){
+      ratingWidget.innerHTML = '';
+      for (let i=1;i<=5;i++){
+        const s = document.createElement('span');
+        s.className = 'star';
+        s.dataset.value = i;
+        s.innerHTML = '★';
+        s.title = i + ' star' + (i>1?'s':'') ;
+        s.addEventListener('click', ()=>{
+          if (!userVote) {
+            ratings.push(i); userVote = i; saveLocal(); renderRating(); return;
+          }
+          if (userVote === i) { alert('You already voted ' + i + ' star' + (i>1?'s':'') + '.'); return; }
+          if (!confirm(`Change your vote from ${userVote} → ${i}?`)) return;
+          const idx = ratings.indexOf(userVote); if (idx !== -1) ratings.splice(idx,1);
+          ratings.push(i); userVote = i; saveLocal(); renderRating();
+        });
+        ratingWidget.appendChild(s);
+      }
+      const existingRemove = document.getElementById('remove-vote-btn');
+      if (existingRemove) existingRemove.remove();
+      if (userVote) {
+        const rem = document.createElement('button');
+        rem.id = 'remove-vote-btn';
+        rem.className = 'remove-vote';
+        rem.textContent = 'Remove my vote';
+        rem.title = 'Remove your vote so you can vote again';
+        rem.addEventListener('click', ()=>{
+          if (!confirm('Remove your vote?')) return;
+          const idx = ratings.indexOf(userVote);
+          if (idx !== -1) ratings.splice(idx,1);
+          userVote = null; saveLocal(); renderRating();
+        });
+        ratingWidget.parentNode.appendChild(rem);
+      }
+      const count = ratings.length;
+      const avg = count ? (ratings.reduce((a,b)=>a+b,0)/count) : 0;
+      const me = userVote ? `Your vote: ${userVote} — ` : '';
+      ratingSummary.textContent = count ? `${me}Average ${avg.toFixed(2)} / 5 — ${count} vote${count>1?'s':''}` : `${me}No ratings yet — be the first!`;
+      const rounded = Math.round(avg);
+      Array.from(ratingWidget.children).forEach((el, idx)=>{
+        el.classList.toggle('filled', (idx+1) <= rounded);
       });
+    }
 
-      // download/export current data
-      downloadBtn.addEventListener('click', ()=>{
-        const payload = { comments, ratings, exportedAt: (new Date()).toISOString() };
-        const blob = new Blob([JSON.stringify(payload, null, 2)], {type:'application/json'});
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = 'cavatappi-comments.json';
-        document.body.appendChild(a);
-        a.click();
-        a.remove();
-        URL.revokeObjectURL(url);
+    function renderComments(){
+      commentsListEl.innerHTML = '';
+      const tree = buildTree(comments);
+      if (!tree.length) { commentsListEl.innerHTML = '<div class="small muted">No comments yet.</div>'; return; }
+      const wrapper = document.createElement('div'); wrapper.className = 'comment-list';
+      tree.forEach(node => wrapper.appendChild(renderCommentNode(node, 0)));
+      commentsListEl.appendChild(wrapper);
+    }
+
+    function renderCommentNode(node, depth){
+      const el = document.createElement('div'); el.className = 'comment'; if (depth>0) el.classList.add('reply');
+      el.innerHTML = `
+        <div class="comment-head">
+          <strong class="comment-name"></strong>
+          <span class="comment-date small muted"></span>
+        </div>
+        <div class="comment-body"></div>
+        <div class="comment-actions small muted">
+          <button class="reply-btn">Reply</button>
+        </div>
+        <div class="replies"></div>
+      `;
+      el.querySelector('.comment-name').textContent = node.name;
+      el.querySelector('.comment-date').textContent = ' • ' + (new Date(node.date)).toLocaleString();
+      el.querySelector('.comment-body').textContent = node.text;
+      const replyBtn = el.querySelector('.reply-btn');
+      replyBtn.addEventListener('click', ()=> openReplyForm(el.querySelector('.replies'), node.id));
+      const childrenContainer = el.querySelector('.replies');
+      node.children.forEach(child => childrenContainer.appendChild(renderCommentNode(child, depth+1)));
+      return el;
+    }
+
+    function openReplyForm(containerEl, parentId){
+      if (containerEl.querySelector('.reply-form')) return;
+      const form = document.createElement('div'); form.className = 'reply-form card';
+      form.innerHTML = `
+        <input class="reply-name" placeholder="Your name (required)" required>
+        <textarea class="reply-text" rows="3" placeholder="Write a reply..." required></textarea>
+        <div style="text-align:right; margin-top:6px;">
+          <button class="reply-cancel">Cancel</button>
+          <button class="reply-submit">Post Reply</button>
+        </div>
+      `;
+      containerEl.prepend(form);
+      const ta = form.querySelector('.reply-text');
+      const cleanup = attachAutosize(ta);
+      form.querySelector('.reply-cancel').addEventListener('click', ()=> { cleanup && cleanup(); form.remove(); });
+      form.querySelector('.reply-submit').addEventListener('click', ()=>{
+        const rName = form.querySelector('.reply-name').value.trim();
+        const rText = ta.value.trim();
+        if (!rName || !rText) { alert('Name and reply are required'); return; }
+        const comment = { id: uid(), parentId: parentId, name: rName, text: rText, date: (new Date()).toISOString() };
+        comments.push(comment); saveLocal(); cleanup && cleanup(); renderComments();
       });
+    }
 
-      // Render helpers
-      function buildTree(flat) {
-        const map = new Map();
-        flat.forEach(c => map.set(c.id, {...c, children: []}));
-        const roots = [];
-        map.forEach(node=>{
-          if (node.parentId) {
-            const p = map.get(node.parentId);
-            if (p) p.children.push(node);
-            else roots.push(node);
-          } else roots.push(node);
-        });
-        // sort by date ascending
-        function sortRec(arr){ arr.sort((a,b)=> new Date(a.date) - new Date(b.date)); arr.forEach(n=>sortRec(n.children)); }
-        sortRec(roots);
-        return roots;
-      }
+    submitBtn.addEventListener('click', ()=>{
+      const n = nameInput.value.trim(); 
+      const t = textInput.value.trim();
+      if (!n || !t) { alert('Please enter your name and a comment.'); return; }
+      const c = { id: uid(), parentId: null, name: n, text: t, date: (new Date()).toISOString() };
+      comments.push(c); nameInput.value = ''; textInput.value = '';
+      if (mainAutosizeCleanup) mainAutosizeCleanup();
+      mainTA.style.height = ''; 
+      mainAutosizeCleanup = attachAutosize(mainTA);
+      saveLocal(); renderComments();
+    });
 
-      function renderAll(){
-        renderRating();
-        renderComments();
-      }
+    setTimeout(() => renderAll(), 50);
 
-      function renderRating(){
-        ratingWidget.innerHTML = '';
-        // create 5 clickable stars
-        for (let i=1;i<=5;i++){
-          const s = document.createElement('span');
-          s.className = 'star';
-          s.dataset.value = i;
-          s.innerHTML = '★';
-          s.title = i + ' star' + (i>1?'s':'') ;
-          s.addEventListener('click', ()=>{
-            // enforce one vote per user
-            if (!userVote) {
-              // first-time vote
-              ratings.push(i);
-              userVote = i;
-              saveLocal();
-              renderRating();
-              return;
-            }
-            // user has voted already
-            if (userVote === i) {
-              alert('You already voted ' + i + ' star' + (i>1?'s':'') + '.');
-              return;
-            }
-            // ask to change vote
-            if (!confirm(`Change your vote from ${userVote} → ${i}?`)) return;
-            // try remove one instance of previous vote from ratings (best-effort)
-            const idx = ratings.indexOf(userVote);
-            if (idx !== -1) ratings.splice(idx, 1);
-            // add new vote
-            ratings.push(i);
-            userVote = i;
-            saveLocal();
-            renderRating();
-          });
-          ratingWidget.appendChild(s);
-        }
-
-        // add remove-vote control if user voted
-        const existingRemove = document.getElementById('remove-vote-btn');
-        if (existingRemove) existingRemove.remove();
-        if (userVote) {
-          const rem = document.createElement('button');
-          rem.id = 'remove-vote-btn';
-          rem.className = 'remove-vote';
-          rem.textContent = 'Remove my vote';
-          rem.title = 'Remove your vote so you can vote again';
-          rem.addEventListener('click', ()=>{
-            if (!confirm('Remove your vote?')) return;
-            const idx = ratings.indexOf(userVote);
-            if (idx !== -1) ratings.splice(idx,1);
-            userVote = null;
-            saveLocal();
-            renderRating();
-          });
-          ratingWidget.parentNode.appendChild(rem);
-        }
-
-        // summary
-        const count = ratings.length;
-        const avg = count ? (ratings.reduce((a,b)=>a+b,0)/count) : 0;
-        const me = userVote ? `Your vote: ${userVote} — ` : '';
-        ratingSummary.textContent = count ? `${me}Average ${avg.toFixed(2)} / 5 — ${count} vote${count>1?'s':''}` : `${me}No ratings yet — be the first!`;
-
-        // highlight average
-        const rounded = Math.round(avg);
-        Array.from(ratingWidget.children).forEach((el, idx)=>{
-          el.classList.toggle('filled', (idx+1) <= rounded);
-        });
-      }
-
-      function renderComments(){
-        commentsListEl.innerHTML = '';
-        const tree = buildTree(comments);
-        if (!tree.length) {
-          commentsListEl.innerHTML = '<div class="small muted">No comments yet.</div>';
-          return;
-        }
-        const wrapper = document.createElement('div');
-        wrapper.className = 'comment-list';
-        tree.forEach(node => wrapper.appendChild(renderCommentNode(node, 0)));
-        commentsListEl.appendChild(wrapper);
-      }
-
-      function renderCommentNode(node, depth){
-        const el = document.createElement('div');
-        el.className = 'comment';
-        if (depth>0) el.classList.add('reply');
-        el.innerHTML = `
-          <div class="comment-head">
-            <strong class="comment-name"></strong>
-            <span class="comment-date small muted"></span>
-          </div>
-          <div class="comment-body"></div>
-          <div class="comment-actions small muted">
-            <button class="reply-btn">Reply</button>
-          </div>
-          <div class="replies"></div>
-        `;
-        el.querySelector('.comment-name').textContent = node.name;
-        el.querySelector('.comment-date').textContent = ' • ' + (new Date(node.date)).toLocaleString();
-        el.querySelector('.comment-body').textContent = node.text;
-
-        // reply button
-        const replyBtn = el.querySelector('.reply-btn');
-        replyBtn.addEventListener('click', ()=>{
-          openReplyForm(el.querySelector('.replies'), node.id);
-        });
-
-        // children
-        const childrenContainer = el.querySelector('.replies');
-        node.children.forEach(child => childrenContainer.appendChild(renderCommentNode(child, depth+1)));
-        return el;
-      }
-
-      function openReplyForm(containerEl, parentId){
-        // if a form already exists, ignore
-        if (containerEl.querySelector('.reply-form')) return;
-        const form = document.createElement('div');
-        form.className = 'reply-form card';
-        form.innerHTML = `
-          <input class="reply-name" placeholder="Your name (required)" required>
-          <textarea class="reply-text" rows="3" placeholder="Write a reply..." required></textarea>
-          <div style="text-align:right; margin-top:6px;">
-            <button class="reply-cancel">Cancel</button>
-            <button class="reply-submit">Post Reply</button>
-          </div>
-        `;
-        containerEl.prepend(form);
-
-        const ta = form.querySelector('.reply-text');
-        const cleanup = attachAutosize(ta);
-
-        form.querySelector('.reply-cancel').addEventListener('click', ()=> {
-          cleanup && cleanup();
-          form.remove();
-        });
-
-        form.querySelector('.reply-submit').addEventListener('click', ()=>{
-          const rName = form.querySelector('.reply-name').value.trim();
-          const rText = form.querySelector('.reply-text').value.trim();
-          if (!rName || !rText) { alert('Name and reply are required'); return; }
-          const comment = { id: uid(), parentId: parentId, name: rName, text: rText, date: (new Date()).toISOString() };
-          comments.push(comment);
-          saveLocal();
-          cleanup && cleanup();
-          renderComments();
-        });
-      }
-
-      // create new top-level comment
-      submitBtn.addEventListener('click', ()=>{
-        const n = nameInput.value.trim();
-        const t = textInput.value.trim();
-        if (!n || !t) { alert('Please enter your name and a comment.'); return; }
-        const c = { id: uid(), parentId: null, name: n, text: t, date: (new Date()).toISOString() };
-        comments.push(c);
-        nameInput.value = '';
-        textInput.value = '';
-        // reset main textarea height
-        if (mainAutosizeCleanup) mainAutosizeCleanup();
-        mainTA.style.height = ''; // allow CSS min-height to apply
-        // reattach autosize
-        mainAutosizeCleanup = attachAutosize(mainTA);
-
-        saveLocal();
-        renderComments();
-      });
-
-      // download/export current data
-      downloadBtn.addEventListener('click', ()=>{
-        const payload = { comments, ratings, exportedAt: (new Date()).toISOString() };
-        const blob = new Blob([JSON.stringify(payload, null, 2)], {type:'application/json'});
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = 'cavatappi-comments.json';
-        document.body.appendChild(a);
-        a.click();
-        a.remove();
-        URL.revokeObjectURL(url);
-      });
-
-      // initial render (ensure at least one render after script loads)
-      function initialIfNeeded(){ renderAll(); }
-      setTimeout(initialIfNeeded, 50);
-
-      // expose for debugging
-      window.__cavatappi_comments = { getComments: ()=>comments, getRatings: ()=>ratings, saveToRepo: async ()=> {
-        const s = getRepoSettings();
-        if (!s.owner || !s.repo || !s.token) throw new Error('missing repo settings');
-        return saveToRepo({comments, ratings, exportedAt: (new Date()).toISOString()}, s.owner, s.repo, s.branch || 'main', s.token);
-      }};
-    })();
+    window.__cavatappi_comments = { getComments: ()=>comments, getRatings: ()=>ratings, getUserVote: ()=>userVote };
+  })();
   </script>
 </body>
 </html>
