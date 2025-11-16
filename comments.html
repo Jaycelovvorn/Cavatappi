@@ -40,11 +40,28 @@
     <div id="comments-list" style="margin-top:18px;"></div>
   </div>
 
+  <!-- Firebase -->
+  <script src="https://www.gstatic.com/firebasejs/12.6.0/firebase-app.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/12.6.0/firebase-database.js"></script>
+
   <script>
-  // Comments: localStorage auto-save. Fetch comments.json for initial display.
+  // Firebase config — YOUR ACTUAL CONFIG
+  const firebaseConfig = {
+    apiKey: "AIzaSyBftfQPCbE3gq6jcRGeKRpdnaMK-oY7qpo",
+    authDomain: "cavatappi-28523.firebaseapp.com",
+    databaseURL: "https://cavatappi-28523-default-rtdb.firebaseio.com",
+    projectId: "cavatappi-28523",
+    storageBucket: "cavatappi-28523.firebasestorage.app",
+    messagingSenderId: "293468174596",
+    appId: "1:293468174596:web:5b9d740393c712e54f3851",
+    measurementId: "G-Q67G970XFE"
+  };
+
+  firebase.initializeApp(firebaseConfig);
+  const db = firebase.database();
+
+  // Comments: Real-time sync via Firebase
   (function(){
-    const STORAGE_KEY = 'cavatappi_comments';
-    const RATINGS_KEY = 'cavatappi_ratings';
     const USER_VOTE_KEY = 'cavatappi_user_vote';
 
     const commentsListEl = document.getElementById('comments-list');
@@ -83,42 +100,37 @@
 
     const uid = ()=> 'c' + Date.now().toString(36) + Math.random().toString(36).slice(2,8);
     
-    function saveLocal(){
+    // Load user's vote from localStorage
+    function loadUserVote(){
       try {
-        localStorage.setItem(STORAGE_KEY, JSON.stringify(comments));
-        localStorage.setItem(RATINGS_KEY, JSON.stringify(ratings));
-        if (userVote) localStorage.setItem(USER_VOTE_KEY, String(userVote)); 
-        else localStorage.removeItem(USER_VOTE_KEY);
-      } catch(e){}
-    }
-    
-    function loadLocal(){
-      try {
-        const c = JSON.parse(localStorage.getItem(STORAGE_KEY) || 'null');
-        const r = JSON.parse(localStorage.getItem(RATINGS_KEY) || 'null');
         const uv = localStorage.getItem(USER_VOTE_KEY);
-        if (Array.isArray(c)) comments = c;
-        if (Array.isArray(r)) ratings = r;
         if (uv) {
-          const v = parseInt(uv,10);
-          if (!Number.isNaN(v) && v>=1 && v<=5) userVote = v;
+          const v = parseInt(uv, 10);
+          if (!Number.isNaN(v) && v >= 1 && v <= 5) userVote = v;
         }
       } catch(e){}
     }
+    function saveUserVote(){
+      try {
+        if (userVote) localStorage.setItem(USER_VOTE_KEY, String(userVote));
+        else localStorage.removeItem(USER_VOTE_KEY);
+      } catch(e){}
+    }
 
-    // Load comments.json, then overlay localStorage
-    fetch('comments.json')
-      .then(r => r.ok ? r.json() : Promise.reject('no json'))
-      .then(data => {
-        if (Array.isArray(data.comments)) comments = data.comments;
-        if (Array.isArray(data.ratings)) ratings = data.ratings;
-        loadLocal(); // overlay localStorage on top
-        renderAll();
-      })
-      .catch(() => {
-        loadLocal(); // fallback to localStorage only
-        renderAll();
-      });
+    // Firebase listeners — real-time sync
+    db.ref('comments').on('value', (snap) => {
+      const data = snap.val();
+      comments = data ? Object.values(data) : [];
+      renderComments();
+    });
+
+    db.ref('ratings').on('value', (snap) => {
+      const data = snap.val();
+      ratings = data ? Object.values(data) : [];
+      renderRating();
+    });
+
+    loadUserVote();
 
     function buildTree(flat){
       const map = new Map();
@@ -149,14 +161,21 @@
         s.dataset.value = i;
         s.innerHTML = '★';
         s.title = i + ' star' + (i>1?'s':'') ;
-        s.addEventListener('click', ()=>{
+        s.addEventListener('click', async ()=>{
           if (!userVote) {
-            ratings.push(i); userVote = i; saveLocal(); renderRating(); return;
+            userVote = i; saveUserVote();
+            const newRatings = [...ratings, i];
+            await db.ref('ratings').set(newRatings.map((r, idx) => ({id: idx, value: r})));
+            renderRating(); return;
           }
-          if (userVote === i) { alert('You already voted ' + i + ' star' + (i>1?'s':'') + '.'); return; }
-          if (!confirm(`Change your vote from ${userVote} → ${i}?`)) return;
-          const idx = ratings.indexOf(userVote); if (idx !== -1) ratings.splice(idx,1);
-          ratings.push(i); userVote = i; saveLocal(); renderRating();
+          if (userVote === i) { alert('You already voted ' + i); return; }
+          if (!confirm(`Change from ${userVote} → ${i}?`)) return;
+          const idx = ratings.indexOf(userVote);
+          if (idx !== -1) ratings.splice(idx, 1);
+          userVote = i; saveUserVote();
+          const newRatings = [...ratings, i];
+          await db.ref('ratings').set(newRatings.map((r, idx2) => ({id: idx2, value: r})));
+          renderRating();
         });
         ratingWidget.appendChild(s);
       }
@@ -167,19 +186,21 @@
         rem.id = 'remove-vote-btn';
         rem.className = 'remove-vote';
         rem.textContent = 'Remove my vote';
-        rem.title = 'Remove your vote so you can vote again';
-        rem.addEventListener('click', ()=>{
+        rem.addEventListener('click', async ()=>{
           if (!confirm('Remove your vote?')) return;
           const idx = ratings.indexOf(userVote);
-          if (idx !== -1) ratings.splice(idx,1);
-          userVote = null; saveLocal(); renderRating();
+          if (idx !== -1) ratings.splice(idx, 1);
+          userVote = null; saveUserVote();
+          const newRatings = [...ratings];
+          await db.ref('ratings').set(newRatings.map((r, idx2) => ({id: idx2, value: r})));
+          renderRating();
         });
         ratingWidget.parentNode.appendChild(rem);
       }
       const count = ratings.length;
       const avg = count ? (ratings.reduce((a,b)=>a+b,0)/count) : 0;
       const me = userVote ? `Your vote: ${userVote} — ` : '';
-      ratingSummary.textContent = count ? `${me}Average ${avg.toFixed(2)} / 5 — ${count} vote${count>1?'s':''}` : `${me}No ratings yet — be the first!`;
+      ratingSummary.textContent = count ? `${me}Average ${avg.toFixed(2)} / 5 — ${count} vote${count>1?'s':''}` : `${me}No ratings yet!`;
       const rounded = Math.round(avg);
       Array.from(ratingWidget.children).forEach((el, idx)=>{
         el.classList.toggle('filled', (idx+1) <= rounded);
@@ -233,28 +254,29 @@
       const ta = form.querySelector('.reply-text');
       const cleanup = attachAutosize(ta);
       form.querySelector('.reply-cancel').addEventListener('click', ()=> { cleanup && cleanup(); form.remove(); });
-      form.querySelector('.reply-submit').addEventListener('click', ()=>{
+      form.querySelector('.reply-submit').addEventListener('click', async ()=>{
         const rName = form.querySelector('.reply-name').value.trim();
         const rText = ta.value.trim();
-        if (!rName || !rText) { alert('Name and reply are required'); return; }
+        if (!rName || !rText) { alert('Name and reply required'); return; }
         const comment = { id: uid(), parentId: parentId, name: rName, text: rText, date: (new Date()).toISOString() };
-        comments.push(comment); saveLocal(); cleanup && cleanup(); renderComments();
+        const newComments = [...comments, comment];
+        await db.ref('comments').set(newComments.reduce((acc, c, idx) => ({...acc, [idx]: c}), {}));
+        cleanup && cleanup(); form.remove();
       });
     }
 
-    submitBtn.addEventListener('click', ()=>{
-      const n = nameInput.value.trim(); 
+    submitBtn.addEventListener('click', async ()=>{
+      const n = nameInput.value.trim();
       const t = textInput.value.trim();
-      if (!n || !t) { alert('Please enter your name and a comment.'); return; }
+      if (!n || !t) { alert('Name and comment required'); return; }
       const c = { id: uid(), parentId: null, name: n, text: t, date: (new Date()).toISOString() };
-      comments.push(c); nameInput.value = ''; textInput.value = '';
+      const newComments = [...comments, c];
+      await db.ref('comments').set(newComments.reduce((acc, cm, idx) => ({...acc, [idx]: cm}), {}));
+      nameInput.value = ''; textInput.value = '';
       if (mainAutosizeCleanup) mainAutosizeCleanup();
-      mainTA.style.height = ''; 
+      mainTA.style.height = '';
       mainAutosizeCleanup = attachAutosize(mainTA);
-      saveLocal(); renderComments();
     });
-
-    setTimeout(() => renderAll(), 50);
 
     window.__cavatappi_comments = { getComments: ()=>comments, getRatings: ()=>ratings, getUserVote: ()=>userVote };
   })();
