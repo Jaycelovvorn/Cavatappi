@@ -175,7 +175,7 @@ textarea {
   overflow-y: hidden;
 }
 
-.tabs { display: flex; gap: 10px; position: absolute; top: 15px; right: 20px; }
+.tabs { display: flex; gap: 10px; position: absolute; top: 90px; right: 20px; }
 
 .tabs a { 
   padding: 8px 16px; 
