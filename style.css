@@ -156,15 +156,14 @@ textarea {
   box-shadow: 0 0 6px #7dd3fc55;
   border-radius: 8px;
   transition: box-shadow 0.3s ease;
-  resize: none;              /* disable user resize */
+  resize: none;           
   width: 100%;
   box-sizing: border-box;
-  min-height: 88px;         /* start reasonably large */
-  max-height: 50vh;         /* won't overflow viewport; keeps inside container */
-  overflow-y: hidden;       /* JS will toggle to auto when capped */
+  min-height: 88px;         
+  max-height: 50vh;        
+  overflow-y: hidden;      
 }
 
-/* Apply same constraints specifically to comment textareas */
 #new-comment-card textarea,
 .reply-form textarea {
   resize: none;

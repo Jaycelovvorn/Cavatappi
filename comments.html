@@ -17,14 +17,12 @@
   <div class="container" id="comments-app">
     <h1>Comments</h1>
 
-    <!-- Rating (anonymous) -->
     <div class="card" id="rating-card">
       <div class="small muted">Anonymous rating — 1 to 5 stars</div>
       <div id="rating-widget" class="stars" aria-label="Rating widget"></div>
       <div class="small muted" id="rating-summary">Loading…</div>
     </div>
 
-    <!-- New comment form -->
     <div class="card" id="new-comment-card" style="margin-top:16px;">
       <div class="small muted">Leave a comment</div>
       <div class="meta-row">
@@ -36,16 +34,13 @@
       </div>
     </div>
 
-    <!-- Comments list -->
     <div id="comments-list" style="margin-top:18px;"></div>
   </div>
 
-  <!-- Firebase -->
   <script src="https://www.gstatic.com/firebasejs/12.6.0/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/12.6.0/firebase-database-compat.js"></script>
 
   <script>
-  // Firebase config — YOUR ACTUAL CONFIG
   const firebaseConfig = {
     apiKey: "AIzaSyBftfQPCbE3gq6jcRGeKRpdnaMK-oY7qpo",
     authDomain: "cavatappi-28523.firebaseapp.com",
@@ -60,7 +55,6 @@
   firebase.initializeApp(firebaseConfig);
   const db = firebase.database();
 
-  // Comments: Real-time sync via Firebase
   (function(){
     const USER_VOTE_KEY = 'cavatappi_user_vote';
 
@@ -75,7 +69,6 @@
     let ratings = [];
     let userVote = null;
 
-    // autosize helpers
     function autosizeTextarea(el){
       if (!el) return;
       el.style.height = 'auto';
@@ -100,7 +93,6 @@
 
     const uid = ()=> 'c' + Date.now().toString(36) + Math.random().toString(36).slice(2,8);
     
-    // Load user's vote from localStorage
     function loadUserVote(){
       try {
         const uv = localStorage.getItem(USER_VOTE_KEY);
@@ -169,9 +161,7 @@
             renderRating(); 
             return;
           }
-          // if user clicked same rating, ignore silently
           if (userVote === i) return;
-          // automatically change vote (no confirm)
           const idx = ratings.indexOf(userVote);
           if (idx !== -1) ratings.splice(idx, 1);
           userVote = i; saveUserVote();
@@ -189,7 +179,6 @@
         rem.className = 'remove-vote';
         rem.textContent = 'Remove my vote';
         rem.addEventListener('click', async ()=>{
-          // remove vote without confirmation
           const idx = ratings.indexOf(userVote);
           if (idx !== -1) ratings.splice(idx, 1);
           userVote = null; saveUserVote();

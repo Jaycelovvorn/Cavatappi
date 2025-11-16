@@ -5,7 +5,6 @@
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <link rel="stylesheet" href="style.css">
   <style>
-  /* Comments overlay styles */
   #comments-overlay { position: fixed; inset: 0; display: none; z-index: 9999; align-items: center; justify-content: center; }
   #comments-overlay.show { display: flex; }
   #comments-overlay .backdrop { position: absolute; inset: 0; background: rgba(2,6,23,0.6); backdrop-filter: blur(4px); }
@@ -46,7 +45,6 @@
     <button id="comments-toggle" aria-expanded="false">Comments</button>
   </div>
   
-  <!-- overlay: hidden by default; iframe loads local comments.html -->
   <div id="comments-overlay" aria-hidden="true">
     <div class="backdrop" data-role="backdrop"></div>
     <div class="panel" role="dialog" aria-modal="true">
@@ -109,7 +107,6 @@ bLANK
     </div>
   </div>
   <script>
-    // comments overlay toggle
 (function(){
   const toggle = document.getElementById('comments-toggle');
   const overlay = document.getElementById('comments-overlay');
@@ -121,7 +118,6 @@ bLANK
     overlay.classList.add('show');
     overlay.setAttribute('aria-hidden','false');
     toggle.setAttribute('aria-expanded','true');
-    // ensure iframe is loaded (src already set) — optionally focus inside
     setTimeout(()=> {
       try { iframe.contentWindow && iframe.contentWindow.focus(); } catch(e){}
     },200);
@@ -138,7 +134,6 @@ bLANK
   });
   backdrop.addEventListener('click', hideOverlay);
   closeBtn.addEventListener('click', hideOverlay);
-  // ESC key closes overlay
   window.addEventListener('keydown', (e)=>{
     if (e.key === 'Escape' && overlay.classList.contains('show')) hideOverlay();
   });
