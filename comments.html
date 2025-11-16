@@ -17,6 +17,19 @@
   <div class="container" id="comments-app">
     <h1>Comments</h1>
 
+    <!-- Repo settings (optional) -->
+    <div class="card" id="repo-settings" style="margin-bottom:12px;">
+      <div class="small muted">Optional: save comments directly to this GitHub repo (requires Personal Access Token).</div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:8px;">
+        <input id="gh-owner" placeholder="owner (e.g. your-username)" style="min-width:160px">
+        <input id="gh-repo" placeholder="repo (e.g. Cavatappi)" style="min-width:160px">
+        <input id="gh-branch" placeholder="branch (default: main)" style="min-width:120px">
+        <input id="gh-token" placeholder="Personal Access Token (paste here)" type="password" style="min-width:240px">
+        <button id="gh-save-settings" title="Save repo settings locally">Save</button>
+      </div>
+      <div class="small muted" style="margin-top:8px;">Tip: use a repo token with minimal scopes. Token is stored in your browser only.</div>
+    </div>
+
     <!-- Rating (anonymous) -->
     <div class="card" id="rating-card">
       <div class="small muted">Anonymous rating — 1 to 5 stars</div>
@@ -29,7 +42,10 @@
       <div class="small muted">Leave a comment</div>
       <div class="meta-row">
         <input id="comment-name" placeholder="Your name (required)" required>
-        <button id="download-json" title="Export comments to JSON" style="margin-left:auto">Download JSON</button>
+        <div style="margin-left:auto; display:flex; gap:8px;">
+          <button id="download-json" title="Export comments to JSON">Download JSON</button>
+          <button id="save-to-repo" title="Save comments.json to configured GitHub repo">Save to repo</button>
+        </div>
       </div>
       <textarea id="comment-text" rows="4" placeholder="Write your comment..." required></textarea>
       <div style="margin-top:8px;">
@@ -42,13 +58,14 @@
   </div>
 
   <script>
-    // Simple client-side comments storage & UI
+    // Simple client-side comments storage & UI with optional GitHub repo save
     // Data model: { id, parentId (null=root), name, text, dateISO }
     // Ratings model: array of numbers 1..5
     (function(){
       const STORAGE_KEY = 'cavatappi_comments';
       const RATINGS_KEY = 'cavatappi_ratings';
-      const USER_VOTE_KEY = 'cavatappi_user_vote'; // stores the user's single vote (1..5)
+      const USER_VOTE_KEY = 'cavatappi_user_vote';
+      const REPO_SETTINGS_KEY = 'cavatappi_repo_settings';
 
       const commentsListEl = document.getElementById('comments-list');
       const nameInput = document.getElementById('comment-name');
@@ -57,6 +74,12 @@
       const ratingWidget = document.getElementById('rating-widget');
       const ratingSummary = document.getElementById('rating-summary');
       const downloadBtn = document.getElementById('download-json');
+      const saveToRepoBtn = document.getElementById('save-to-repo');
+      const ghOwnerInput = document.getElementById('gh-owner');
+      const ghRepoInput = document.getElementById('gh-repo');
+      const ghBranchInput = document.getElementById('gh-branch');
+      const ghTokenInput = document.getElementById('gh-token');
+      const ghSaveSettingsBtn = document.getElementById('gh-save-settings');
 
       let comments = [];
       let ratings = [];
@@ -64,14 +87,58 @@
 
       // utilities
       const uid = ()=> 'c' + Date.now().toString(36) + Math.random().toString(36).slice(2,8);
-      const saveLocal = ()=> {
+
+      function getRepoSettings(){ 
+        try { return JSON.parse(localStorage.getItem(REPO_SETTINGS_KEY) || 'null') || {}; } catch(e){ return {}; }
+      }
+      function saveRepoSettings(s){
+        localStorage.setItem(REPO_SETTINGS_KEY, JSON.stringify(s || {}));
+      }
+
+      // base64 helper for unicode-safe encoding
+      function base64EncodeUnicode(str){
+        return btoa(unescape(encodeURIComponent(str)));
+      }
+
+      // fetch file sha (if exists) via GitHub API
+      async function getFileSha(owner, repo, path, branch, token){
+        const url = `https://api.github.com/repos/${owner}/${repo}/contents/${encodeURIComponent(path)}?ref=${encodeURIComponent(branch||'main')}`;
+        const res = await fetch(url, { headers: token ? { Authorization: 'token ' + token } : {} });
+        if (res.ok){
+          const j = await res.json();
+          return j.sha;
+        }
+        return null; // not found or no perms
+      }
+
+      // save comments+ratings JSON to repo (create or update)
+      async function saveToRepo(payload, owner, repo, branch, token, path='comments.json'){
+        if (!owner || !repo || !token) throw new Error('missing repo or token');
+        const content = base64EncodeUnicode(JSON.stringify(payload, null, 2));
+        const sha = await getFileSha(owner, repo, path, branch, token);
+        const putUrl = `https://api.github.com/repos/${owner}/${repo}/contents/${encodeURIComponent(path)}`;
+        const body = { message: 'Update comments.json via site', content, branch: branch || 'main' };
+        if (sha) body.sha = sha;
+        const res = await fetch(putUrl, {
+          method: 'PUT',
+          headers: Object.assign({'Content-Type':'application/json'}, token ? { Authorization: 'token ' + token } : {}),
+          body: JSON.stringify(body)
+        });
+        if (!res.ok){
+          const txt = await res.text();
+          throw new Error('GitHub API error: ' + res.status + ' ' + txt);
+        }
+        return await res.json();
+      }
+
+      function saveLocal(){
         try {
           localStorage.setItem(STORAGE_KEY, JSON.stringify(comments));
           localStorage.setItem(RATINGS_KEY, JSON.stringify(ratings));
           if (userVote) localStorage.setItem(USER_VOTE_KEY, String(userVote)); else localStorage.removeItem(USER_VOTE_KEY);
         } catch(e){}
-      };
-      const loadLocal = ()=>{
+      }
+      function loadLocal(){
         try {
           const c = JSON.parse(localStorage.getItem(STORAGE_KEY) || 'null');
           const r = JSON.parse(localStorage.getItem(RATINGS_KEY) || 'null');
@@ -82,23 +149,68 @@
             const v = parseInt(uv,10);
             if (!Number.isNaN(v) && v>=1 && v<=5) userVote = v;
           }
+          // load repo settings into form
+          const s = getRepoSettings();
+          if (s.owner) ghOwnerInput.value = s.owner || '';
+          if (s.repo) ghRepoInput.value = s.repo || '';
+          if (s.branch) ghBranchInput.value = s.branch || '';
+          if (s.token) ghTokenInput.value = s.token || '';
         } catch(e){}
-      };
+      }
 
-      // Try fetch comments.json for initial data (won't work on file:// in some setups)
+      // Try fetch comments.json for initial data (will fetch the hosted file)
       fetch('comments.json').then(r=>{
         if (!r.ok) throw new Error('no json');
         return r.json();
       }).then(data=>{
-        // if server data exists, use it, then merge local on top
         if (Array.isArray(data.comments)) comments = data.comments;
         if (Array.isArray(data.ratings)) ratings = data.ratings;
-        loadLocal(); // overlay any local interactions
+        loadLocal();
         renderAll();
       }).catch(()=> {
         // fallback to local storage
         loadLocal();
         renderAll();
+      });
+
+      // wire repo-settings save
+      ghSaveSettingsBtn.addEventListener('click', ()=>{
+        const s = { owner: (ghOwnerInput.value||'').trim(), repo: (ghRepoInput.value||'').trim(), branch: (ghBranchInput.value||'').trim() || 'main', token: (ghTokenInput.value||'').trim() };
+        saveRepoSettings(s);
+        alert('Repo settings saved locally. Use "Save to repo" to write comments.json.');
+      });
+
+      // "Save to repo" button handler: will attempt to commit comments.json using provided token
+      saveToRepoBtn.addEventListener('click', async ()=>{
+        const s = getRepoSettings();
+        if (!s.owner || !s.repo || !s.token){ alert('Fill owner, repo and token in repo settings first.'); return; }
+        const payload = { comments, ratings, exportedAt: (new Date()).toISOString() };
+        try {
+          saveToRepoBtn.disabled = true;
+          saveToRepoBtn.textContent = 'Saving…';
+          await saveToRepo(payload, s.owner, s.repo, s.branch || 'main', s.token, 'comments.json');
+          alert('comments.json saved to repo successfully.');
+        } catch (err){
+          console.error(err);
+          alert('Error saving to repo: ' + (err.message||err));
+        } finally {
+          saveToRepoBtn.disabled = false;
+          saveToRepoBtn.textContent = 'Save to repo';
+        }
+      });
+
+      // download/export current data
+      downloadBtn.addEventListener('click', ()=>{
+        const payload = { comments, ratings, exportedAt: (new Date()).toISOString() };
+        const blob = new Blob([JSON.stringify(payload, null, 2)], {type:'application/json'});
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = 'cavatappi-comments.json';
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        URL.revokeObjectURL(url);
       });
 
       // Render helpers
@@ -307,15 +419,16 @@
         URL.revokeObjectURL(url);
       });
 
-      // initial render (if fetch already failed)
-      function initialIfNeeded(){
-        renderAll();
-      }
-      // ensure at least one render after script loads
+      // initial render (ensure at least one render after script loads)
+      function initialIfNeeded(){ renderAll(); }
       setTimeout(initialIfNeeded, 50);
 
-      // expose for debugging if needed
-      window.__cavatappi_comments = { getComments: ()=>comments, getRatings: ()=>ratings, getUserVote: ()=>userVote };
+      // expose for debugging
+      window.__cavatappi_comments = { getComments: ()=>comments, getRatings: ()=>ratings, saveToRepo: async ()=> {
+        const s = getRepoSettings();
+        if (!s.owner || !s.repo || !s.token) throw new Error('missing repo settings');
+        return saveToRepo({comments, ratings, exportedAt: (new Date()).toISOString()}, s.owner, s.repo, s.branch || 'main', s.token);
+      }};
     })();
   </script>
 </body>
