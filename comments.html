@@ -166,10 +166,12 @@
             userVote = i; saveUserVote();
             const newRatings = [...ratings, i];
             await db.ref('ratings').set(newRatings.map((r, idx) => ({id: idx, value: r})));
-            renderRating(); return;
+            renderRating(); 
+            return;
           }
-          if (userVote === i) { alert('You already voted ' + i); return; }
-          if (!confirm(`Change from ${userVote} → ${i}?`)) return;
+          // if user clicked same rating, ignore silently
+          if (userVote === i) return;
+          // automatically change vote (no confirm)
           const idx = ratings.indexOf(userVote);
           if (idx !== -1) ratings.splice(idx, 1);
           userVote = i; saveUserVote();
@@ -187,7 +189,7 @@
         rem.className = 'remove-vote';
         rem.textContent = 'Remove my vote';
         rem.addEventListener('click', async ()=>{
-          if (!confirm('Remove your vote?')) return;
+          // remove vote without confirmation
           const idx = ratings.indexOf(userVote);
           if (idx !== -1) ratings.splice(idx, 1);
           userVote = null; saveUserVote();
@@ -257,7 +259,8 @@
       form.querySelector('.reply-submit').addEventListener('click', async ()=>{
         const rName = form.querySelector('.reply-name').value.trim();
         const rText = ta.value.trim();
-        if (!rName || !rText) { alert('Name and reply required'); return; }
+        if (!rName) { form.querySelector('.reply-name').focus(); return; }
+        if (!rText) { ta.focus(); return; }
         const comment = { id: uid(), parentId: parentId, name: rName, text: rText, date: (new Date()).toISOString() };
         const newComments = [...comments, comment];
         await db.ref('comments').set(newComments.reduce((acc, c, idx) => ({...acc, [idx]: c}), {}));
@@ -268,7 +271,8 @@
     submitBtn.addEventListener('click', async ()=>{
       const n = nameInput.value.trim();
       const t = textInput.value.trim();
-      if (!n || !t) { alert('Name and comment required'); return; }
+      if (!n) { nameInput.focus(); return; }
+      if (!t) { textInput.focus(); return; }
       const c = { id: uid(), parentId: null, name: n, text: t, date: (new Date()).toISOString() };
       const newComments = [...comments, c];
       await db.ref('comments').set(newComments.reduce((acc, cm, idx) => ({...acc, [idx]: cm}), {}));
