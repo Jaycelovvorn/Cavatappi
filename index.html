@@ -37,14 +37,26 @@
     cursor: pointer;
     box-shadow: 0 0 8px #7dd3fc55;
   }
+
+  .tabs {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .tabs button {
+    background: linear-gradient(135deg,#0b1220 0%,#10243a 100%);
+    color: #7dd3fc;
+    border: 1px solid #7dd3fc;
+    border-radius: 8px;
+    padding: 6px 10px;
+    cursor: pointer;
+    box-shadow: 0 0 8px #7dd3fc55;
+    font-size: 14px;
+  }
   </style>
   <title>16-bit Adder/Subtractor</title>
 </head>
 <body>
-<div class="tabs">
-    <button id="comments-toggle" aria-expanded="false">Comments</button>
-  </div>
-  
   <div id="comments-overlay" aria-hidden="true">
     <div class="backdrop" data-role="backdrop"></div>
     <div class="panel" role="dialog" aria-modal="true">
@@ -53,7 +65,7 @@
     </div>
   </div>
 
-  <h1>16-bit Adder / Subtractor (Gate-level simulation in browser)</h1>
+  <div class="live">It lives...?</div>
   <div class="row app">
     <header>
       <h1>16-bit Adder / Subtractor / Multiplier / Divider</h1>
@@ -71,6 +83,11 @@
         </select>
       </label>
       <button id="compute">Compute</button>
+
+      <div class="tabs" aria-hidden="false">
+        <button id="comments-toggle" aria-expanded="false">Comments</button>
+      </div>
+
     </div>
   </div>
   <div class="cards">
@@ -84,17 +101,36 @@
 <section>
     <b>Project</b>
 <hr>
-From looking up things about logic gates and 16bit calculators using them, I discovered the programming language of VHDL. VHDL is an acronym for VHSIC Hardware Description Language, or Very High Speed Integrated Circuits Hardware Descriptive Language. As the name suggests, it simulates and synthesizes digital electronic systems; in other words, logic gates. Due to this relation to my main project, instead of using that python calculator to represent what the logic gate were doing, I learned the necessary parts of VHDL to code it in that instead.
+From looking up things about logic gates and 16bit calculators using them, I discovered the programming language called VHDL. VHDL is an acronym for VHSIC Hardware Description Language, or Very High Speed Integrated Circuits Hardware Descriptive Language. As the name suggests, it simulates and synthesizes digital electronic systems; in other words, logic gates. Due to this relation to my main project, instead of using that python calculator to represent what the logic gate were doing, I learned the necessary parts of VHDL to code it in that instead. What you see is a VHDL, python, HTML stack.
+<div class="img-row">
+        <img src="https://i.postimg.cc/4ynZJvgh/image-2025-11-17-013236187.png" alt="Calculator Spaghetti Interpreter Code">
+      </div>
+      <p class="caption">Sample of my current python</p>
 </section>
 <section>
     <b>ME<span style="color:grey;font-size:8px">.md</span></b>
 <hr>
-I am horrible at fixing code. Especially HTML. It took me two days to figure out why I couldn't add text here before I realized I set the z-index higher than the paragraph tag.
+I am horrible at fixing code. Especially HTML. It took me two days to figure out why I couldn't add text here before I realized I set the z-index higher than the paragraph tag. It also took an unbelievable amount time to realize I had no way to have comments since the native comment box is covered. Despite spending hours having been clueless about all of the problems I ran into (and probably will still run in to), I think making this has been surprisingly fun even though I have no idea what I'm doing.
+<div class="img-row">
+        <img src="https://i.postimg.cc/0QwFZtP3/image-2025-11-17-013519635.png" alt="Current Errors">
+      </div>
+      <p class="caption">This is how many errors I have as of writing this. (Right hand side, red icon #6)</p>
 </section>
 <section>
     <b>Progression</b>
 <hr>
-bLANK
+Going forward I hope to at least have exponential operations (shouldn't be too hard) and the logic gate display at the very least. Any additional things I may add include function and sequence tables, equation presets, or factorization. After all of what I have time to do is done, I will widely spread it across the internet to garner as many responses I can get in order to see if I succeeded in teaching literally anybody anything.
+<br><span style="color:#777777; font-size:10px">I do realize this one is less visually appealing... I beg of you, don't smite me.</span>
+</section>
+<section>
+  <b>Commented on...</b>
+  <hr>
+  <a href='https://addiepfall25.edublogs.org/2025/11/14/endangered-animals-how-is-it-going' target=“_blank”>Addie's <i>Endangered Animals! How is it going?</i></a>
+<br>
+  <a href='https://kaidensfall25.edublogs.org/2025/11/15/process-of-the-informational-sports-cards-project' target=“_blank”>Kaiden's <i>Process of The Informational Sports Cards Project</i></a> 
+<br>
+  <a href='https://ianabfall125.edublogs.org/2025/11/13/a-new-way-of-treatment-progress' target=“_blank”>Iana's <i>A New Way Of Treatment – Progress</i></a>
+  <br><span style="color:#777777; font-size:10px">I thought the em dash in the name was neat.</span>
 </section>
    </div>
     </div>
@@ -249,7 +285,6 @@ bLANK
         const res = mul_16(A, B);
         document.getElementById('resultDisplay').textContent = `Product = ${res.Product32} (HIGH=0x${res.High16.toString(16).toUpperCase().padStart(4,'0')} LOW=0x${res.Low16.toString(16).toUpperCase().padStart(4,'0')}) HEX=${res.ProductHex}`;
         document.getElementById('flags').textContent = `Overflow=${res.Overflow ? 1 : 0}`;
-        // show full 32-bit binary separated
         const full = (res.Product32 >>> 0).toString(2).padStart(32,'0');
         document.getElementById('binary').textContent = full.slice(0,16) + ' ' + full.slice(16);
       } else if (OP === 'DIV') {
