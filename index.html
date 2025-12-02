@@ -80,7 +80,8 @@
           <option value="SUB">Subtract</option>
           <option value="MUL">Multiply</option>
           <option value="DIV">Divide</option>
-            <option value="EXP">Exponent</option>
+          <option value="EXP">Exponent</option>
+          <option value="ROOT">Root</option>
         </select>
       </label>
       <button id="compute">Compute</button>
@@ -262,6 +263,52 @@ Going forward I hope to at least have exponential operations (shouldn't be too h
         High32: high32
       };
     }
+    function root_16(a, b) {
+      const mask = 0xFFFF;
+      a = a & mask; b = b & mask;
+      // Root 0 is not defined
+      if (b === 0) return { InvalidRoot: true };
+      // Root 1 is just A
+      if (b === 1) {
+        const hex = '0x' + a.toString(16).toUpperCase().padStart(4,'0');
+        return {
+          A: a,
+          B: b,
+          Result: a,
+          ResultHex: hex,
+          ResultBin: a.toString(2).padStart(16,'0'),
+          IsExact: true
+        };
+      }
+      // Compute bth root using Newton's method for integers
+      let x = a;
+      let xPrev;
+      const maxIter = 100;
+      let iter = 0;
+      while (iter < maxIter) {
+        xPrev = x;
+        // x_new = ((b-1)*x + a/x^(b-1)) / b
+        const xPowBM1 = Math.pow(x, b - 1);
+        x = Math.floor(((b - 1) * x + a / xPowBM1) / b);
+        if (x === xPrev || x === 0) break;
+        iter++;
+      }
+      // Verify the result
+      const xPowB = Math.pow(x, b);
+      const xP1PowB = Math.pow(x + 1, b);
+      const isExact = xPowB === a;
+      const hex = '0x' + x.toString(16).toUpperCase().padStart(4,'0');
+      return {
+        A: a,
+        B: b,
+        Result: x,
+        ResultHex: hex,
+        ResultBin: x.toString(2).padStart(16,'0'),
+        IsExact: isExact,
+        CheckPowB: xPowB,
+        CheckPowBPlus1: xP1PowB
+      };
+    }
     function toBin16(x) {
       return (x & 0xFFFF).toString(2).padStart(16,'0').replace(/(.{4})/g,'$1 ').trim();
     }
@@ -341,6 +388,19 @@ Going forward I hope to at least have exponential operations (shouldn't be too h
           document.getElementById('resultDisplay').textContent = `Exp: ${A} ^ ${B} = ${res.ResultBig.toString()} HEX=${res.ResultHex}`;
           document.getElementById('flags').textContent = `Overflow=${res.Overflow ? 1 : 0}  High32=0x${res.High32.toString(16).toUpperCase().padStart(8,'0')} Low32=0x${res.Low32.toString(16).toUpperCase().padStart(8,'0')}`;
           document.getElementById('binary').textContent = displayBin.replace(/(.{4})/g,'$1 ').trim();
+        }
+      }
+      else if (OP === 'ROOT') {
+        const res = root_16(A, B);
+        if (res.InvalidRoot) {
+          document.getElementById('resultDisplay').textContent = 'Error: root 0 is not defined';
+          document.getElementById('flags').textContent = '';
+          document.getElementById('binary').textContent = '';
+        } else {
+          const exactStr = res.IsExact ? '(exact)' : '(approx)';
+          document.getElementById('resultDisplay').textContent = `Root: ${B}√${A} = ${res.Result} ${exactStr} HEX=${res.ResultHex}`;
+          document.getElementById('flags').textContent = `${res.Result}^${res.B}=${Math.pow(res.Result, res.B).toFixed(0)}  (${res.Result}+1)^${res.B}=${Math.pow(res.Result + 1, res.B).toFixed(0)}`;
+          document.getElementById('binary').textContent = toBin16(res.Result);
         }
       }
     });
