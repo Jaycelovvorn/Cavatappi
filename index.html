@@ -80,6 +80,7 @@
           <option value="SUB">Subtract</option>
           <option value="MUL">Multiply</option>
           <option value="DIV">Divide</option>
+            <option value="EXP">Exponent</option>
         </select>
       </label>
       <button id="compute">Compute</button>
@@ -234,6 +235,33 @@ Going forward I hope to at least have exponential operations (shouldn't be too h
       const r = a % b;
       return { A: a, B: b, Quotient: q, Remainder: r, QHex: '0x' + q.toString(16).toUpperCase().padStart(4,'0'), RHex: '0x' + r.toString(16).toUpperCase().padStart(4,'0') };
     }
+    function exp_16(a, b) {
+      const mask = 0xFFFF;
+      a = a & mask; b = b & mask;
+      // Negative exponents are not supported for integer arithmetic here
+      if (b < 0) return { NegExp: true };
+      // Cap exponent to avoid extremely large results in the browser
+      if (b > 16) return { TooLarge: true, B: b };
+      const A = BigInt(a);
+      const B = BigInt(b);
+      const result = A ** B;
+      const resultHex = '0x' + result.toString(16).toUpperCase();
+      const bin = result.toString(2);
+      // We'll treat Overflow as "greater than 32-bit" for this UI (like multiply)
+      const overflow = result > (BigInt(0xFFFFFFFF));
+      const low32 = Number(result & BigInt(0xFFFFFFFF));
+      const high32 = Number((result >> 32n) & BigInt(0xFFFFFFFF));
+      return {
+        A: a,
+        B: b,
+        ResultBig: result,
+        ResultHex: resultHex,
+        ResultBin: bin,
+        Overflow: overflow,
+        Low32: low32,
+        High32: high32
+      };
+    }
     function toBin16(x) {
       return (x & 0xFFFF).toString(2).padStart(16,'0').replace(/(.{4})/g,'$1 ').trim();
     }
@@ -297,6 +325,24 @@ Going forward I hope to at least have exponential operations (shouldn't be too h
           document.getElementById('binary').textContent = toBin16(res.Quotient) + '  (quotient)\n' + toBin16(res.Remainder) + '  (remainder)';
         }
       }
+      else if (OP === 'EXP') {
+        const res = exp_16(A, B);
+        if (res.NegExp) {
+          document.getElementById('resultDisplay').textContent = 'Error: negative exponent not supported';
+          document.getElementById('flags').textContent = '';
+          document.getElementById('binary').textContent = '';
+        } else if (res.TooLarge) {
+          document.getElementById('resultDisplay').textContent = `Error: exponent ${res.B} too large (limit=16)`;
+          document.getElementById('flags').textContent = '';
+          document.getElementById('binary').textContent = '';
+        } else {
+          const fullBin = res.ResultBin;
+          const displayBin = fullBin.length > 64 ? '...'+ fullBin.slice(-64) : fullBin.padStart(Math.max(16, fullBin.length),'0');
+          document.getElementById('resultDisplay').textContent = `Exp: ${A} ^ ${B} = ${res.ResultBig.toString()} HEX=${res.ResultHex}`;
+          document.getElementById('flags').textContent = `Overflow=${res.Overflow ? 1 : 0}  High32=0x${res.High32.toString(16).toUpperCase().padStart(8,'0')} Low32=0x${res.Low32.toString(16).toUpperCase().padStart(8,'0')}`;
+          document.getElementById('binary').textContent = displayBin.replace(/(.{4})/g,'$1 ').trim();
+        }
+      }
     });
     document.getElementById('compute').click();
   fetchVHDL('vhdl1','adder_subtractor_16.vhd');
@@ -305,3 +351,4 @@ Going forward I hope to at least have exponential operations (shouldn't be too h
 </body>
 
 </html>
+
